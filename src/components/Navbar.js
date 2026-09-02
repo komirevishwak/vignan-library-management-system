@@ -18,7 +18,7 @@ export default function Navbar() {
             </div>
             <div>
               <span className="font-bold text-lg text-slate-900 tracking-tight flex items-center gap-1.5">
-                Athena <span className="text-brand-600 font-semibold text-xs px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200">LMS</span>
+                Vignandhara <span className="text-brand-600 font-semibold text-xs px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200">LMS</span>
               </span>
               <p className="text-[11px] text-slate-500 font-medium">College Library Portal</p>
             </div>

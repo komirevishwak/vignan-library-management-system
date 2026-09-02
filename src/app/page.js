@@ -266,10 +266,10 @@ export default function LandingPage() {
             <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white">
               <BookOpen className="w-4 h-4" />
             </div>
-            <span className="font-bold text-white text-base">Athena College LMS</span>
+            <span className="font-bold text-white text-base">Vignandhara College LMS</span>
           </div>
           <p className="text-xs text-slate-400">
-            © {new Date().getFullYear()} College Central Library. All rights reserved. Powered by Next.js & Supabase.
+            © {new Date().getFullYear()} Vignandhara Central Library. All rights reserved. Powered by Next.js & Supabase.
           </p>
           <div className="flex items-center gap-4 text-xs font-semibold text-slate-400">
             <Link href="/login" className="hover:text-white transition">Sign In</Link>

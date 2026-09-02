@@ -2,8 +2,8 @@ import "./globals.css";
 import SetupBanner from "@/components/SetupBanner";
 
 export const metadata = {
-  title: "Athena LMS | College Library Management System",
-  description: "Modern, comprehensive Library Management System for colleges and universities. Manage books, student borrows, returns, fines, and catalog with ease.",
+  title: "Vignandhara | College Library Management System",
+  description: "Vignandhara - Modern, comprehensive Library Management System for colleges and universities. Manage books, student borrows, returns, fines, and catalog with ease.",
 };
 
 export default function RootLayout({ children }) {

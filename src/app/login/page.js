@@ -72,7 +72,7 @@ export default function LoginPage() {
             </div>
           </Link>
           <h2 className="mt-4 text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Welcome to Athena LMS
+            Welcome to Vignandhara LMS
           </h2>
           <p className="mt-1.5 text-sm text-slate-500">
             Sign in to access your library portal & book reservations

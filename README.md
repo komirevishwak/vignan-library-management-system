@@ -1,4 +1,4 @@
-# 📚 Athena LMS — College Library Management System
+# 📚 Vignandhara LMS — College Library Management System
 
 A production-grade, modern, and mobile-responsive College Library Management System web app built with **Next.js 14 (App Router, JavaScript)**, **Tailwind CSS**, and **Supabase** (PostgreSQL database, Auth, Storage, and Row Level Security).
 

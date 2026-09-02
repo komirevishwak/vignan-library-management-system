@@ -137,7 +137,7 @@ export default function StudentDashboardPage() {
             <span>Active Student Membership</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Welcome back to Athena Library
+            Welcome back to Vignandhara Library
           </h1>
           <p className="text-sm text-slate-200 mt-1 max-w-lg">
             Track your borrowed academic books, return deadlines, and explore new library acquisitions.
