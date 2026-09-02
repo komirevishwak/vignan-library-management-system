@@ -61,7 +61,7 @@ export default function Sidebar({ role = "student", userProfile = null, isOpen, 
       {/* Brand Header */}
       <div className="p-6 flex items-center justify-between border-b border-slate-800/80">
         <Link href={role === "admin" ? "/admin/dashboard" : "/student/dashboard"} className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
             <Library className="w-5 h-5" />
           </div>
           <div>

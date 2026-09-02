@@ -264,7 +264,7 @@ export default function AdminDashboardPage() {
           href="/admin/books"
           className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-brand-300 hover:shadow-md transition flex items-center gap-4 group"
         >
-          <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <div className="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center group-hover:scale-110 transition-transform">
             <BookMarked className="w-6 h-6" />
           </div>
           <div>

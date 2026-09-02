@@ -1,11 +1,11 @@
 "use client";
 
-export default function StatCard({ title, value, icon: Icon, color = "blue", subtitle, alert = false }) {
+export default function StatCard({ title, value, icon: Icon, color = "emerald", subtitle, alert = false }) {
   const colorMap = {
     blue: {
-      bg: "bg-blue-50 text-blue-700 border-blue-200",
-      iconBg: "bg-blue-600 text-white",
-      badge: "bg-blue-100 text-blue-800",
+      bg: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      iconBg: "bg-emerald-600 text-white",
+      badge: "bg-emerald-100 text-emerald-800",
     },
     amber: {
       bg: "bg-amber-50 text-amber-800 border-amber-200",

@@ -63,7 +63,7 @@ export default function LandingPage() {
 
             {/* Main Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.15]">
-              Empowering Minds Through <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-700 via-brand-600 to-indigo-600">Knowledge & Discovery</span>
+              Empowering Minds Through <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-700 via-brand-600 to-emerald-500">Knowledge & Discovery</span>
             </h1>
 
             {/* Subtext */}
@@ -112,7 +112,7 @@ export default function LandingPage() {
               <p className="text-xs font-medium text-slate-500 mt-1 uppercase tracking-wider">Nominal Overdue Rate</p>
             </div>
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm text-center">
-              <p className="text-3xl font-extrabold text-indigo-600">100%</p>
+              <p className="text-3xl font-extrabold text-emerald-600">100%</p>
               <p className="text-xs font-medium text-slate-500 mt-1 uppercase tracking-wider">Digital Records</p>
             </div>
           </div>
@@ -180,7 +180,7 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
-              <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center mb-4">
+              <div className="w-12 h-12 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center mb-4">
                 <BookOpen className="w-6 h-6" />
               </div>
               <h3 className="text-lg font-bold text-slate-900">Real-Time Book Catalog</h3>

@@ -89,7 +89,7 @@ export default function BorrowTable({ records = [], showStudent = false, onRetur
                       <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Overdue
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-200">
                       <Clock className="w-3.5 h-3.5" /> Issued
                     </span>
                   )}

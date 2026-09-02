@@ -114,7 +114,7 @@ export default function SignupPage() {
       <div className="sm:mx-auto sm:w-full sm:max-w-xl relative z-10">
         <div className="text-center">
           <Link href="/" className="inline-flex items-center gap-2.5 group">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-800 via-brand-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-brand-700/20 group-hover:scale-105 transition-transform">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-800 via-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-brand-700/20 group-hover:scale-105 transition-transform">
               <BookOpen className="w-6 h-6" />
             </div>
           </Link>
