@@ -3,6 +3,20 @@
 -- AFTER supabase-schema.sql)
 -- ==========================================================
 
+-- 0. Make sure the admin-check helper exists (also created by supabase-schema.sql)
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
+
 -- 1. REALTIME: let the admin portal receive live changes made by students
 DO $$
 DECLARE t TEXT;
