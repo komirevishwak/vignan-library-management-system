@@ -32,6 +32,9 @@ export default function StudentLayout({ children }) {
           .eq("id", user.id)
           .maybeSingle();
 
+        // Update recent activity for the admin dashboard's active-student metric.
+        await supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", user.id);
+
         if (profileError) {
           console.error("Failed to load student profile:", profileError);
         }
@@ -102,7 +105,6 @@ export default function StudentLayout({ children }) {
     <div className="min-h-screen bg-slate-50 flex">
       {/* Sidebar navigation */}
       <Sidebar
-        role="student"
         userProfile={profile}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -112,7 +114,6 @@ export default function StudentLayout({ children }) {
       <div className="flex-1 flex flex-col md:pl-64 min-w-0">
         <Header
           onOpenSidebar={() => setSidebarOpen(true)}
-          role="student"
           userProfile={profile}
           breadcrumb={["Student Portal"]}
         />

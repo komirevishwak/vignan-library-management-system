@@ -25,7 +25,7 @@ export async function GET(request) {
             department: meta.department || "Computer Science & Engineering",
             year: meta.year || "1st Year",
             phone: meta.phone || null,
-            role: meta.role || "student",
+            role: "student",
             photo_url: meta.photo_url || null,
             is_active: true,
           },
@@ -40,16 +40,8 @@ export async function GET(request) {
         return NextResponse.redirect(`${origin}${next}`);
       }
 
-      // Route by role: admin → admin dashboard, student → login with confirmed banner
       // We redirect students to /login?confirmed=true so they see the success banner
       // and then log in fresh (better UX than auto-login from a verification link).
-      const role = meta.role || "student";
-
-      if (role === "admin") {
-        return NextResponse.redirect(`${origin}/admin/dashboard`);
-      }
-
-      // Redirect confirmed students to login page with a success banner
       return NextResponse.redirect(`${origin}/login?confirmed=true`);
     }
   }

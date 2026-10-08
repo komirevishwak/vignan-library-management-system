@@ -71,13 +71,49 @@ export async function updateSession(request) {
     return supabaseResponse;
   }
 
+  // The administration login is public so an unauthenticated administrator can sign in.
+  if (pathname === '/admin/login') {
+    if (!user) return supabaseResponse;
+
+    const { data: adminAccount } = await supabase
+      .from('admin_accounts')
+      .select('is_active')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (adminAccount?.is_active) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/admin/dashboard';
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    return supabaseResponse;
+  }
+
   // Protected routes (/student/* and /admin/*)
   if (pathname.startsWith('/student') || pathname.startsWith('/admin')) {
     if (!user) {
       const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = '/login';
+      redirectUrl.pathname = pathname.startsWith('/admin') ? '/admin/login' : '/login';
       redirectUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(redirectUrl);
+    }
+
+    if (pathname.startsWith('/admin')) {
+      const { data: adminAccount } = await supabase
+        .from('admin_accounts')
+        .select('is_active')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!adminAccount?.is_active) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = '/admin/login';
+        redirectUrl.searchParams.set('error', 'not-authorized');
+        return NextResponse.redirect(redirectUrl);
+      }
+
+      return supabaseResponse;
     }
 
     // Role-based authorization

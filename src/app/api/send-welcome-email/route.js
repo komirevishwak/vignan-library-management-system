@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * POST /api/send-welcome-email
  * Called after a student successfully registers.
- * Sends a styled welcome email via Supabase Auth admin (server-side).
+ * Sends a styled welcome email via the server-side email provider.
  * Body: { userId, fullName, rollNumber, email, department, year }
  */
 export async function POST(request) {

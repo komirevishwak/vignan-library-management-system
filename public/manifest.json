@@ -1,0 +1,10 @@
+{
+  "name": "Vignandhara Library",
+  "short_name": "Vignandhara",
+  "description": "College Library Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#15803d",
+  "icons": []
+}

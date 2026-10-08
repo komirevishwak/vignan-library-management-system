@@ -1,362 +1,149 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { calculateFine, formatCurrency, formatDate } from "@/lib/utils";
-import StatCard from "@/components/StatCard";
-import BorrowTable from "@/components/BorrowTable";
-import {
-  BookOpen,
-  Users,
-  Clock,
-  AlertTriangle,
-  Receipt,
-  ArrowLeftRight,
-  PlusCircle,
-  ArrowRight,
-  ShieldCheck,
-  TrendingUp,
-  BookMarked
-} from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, BookOpen, CheckCircle2, Clock3, MessageSquare, Search, Users } from "lucide-react";
+
+const ACTIVE_WINDOW_MINUTES = 15;
+
+function formatDate(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+}
 
 export default function AdminDashboardPage() {
-  const [stats, setStats] = useState({
-    totalBooks: 0,
-    totalStudents: 0,
-    currentlyIssued: 0,
-    overdueCount: 0,
-    totalPendingFines: 0,
-  });
-  const [recentLoans, setRecentLoans] = useState([]);
+  const [stats, setStats] = useState({ students: 0, available: 0, inUse: 0, active: 0 });
+  const [students, setStudents] = useState([]);
+  const [issues, setIssues] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [borrowHistory, setBorrowHistory] = useState([]);
+  const [search, setSearch] = useState("");
+  const [sortField, setSortField] = useState("created_at");
+  const [sortAscending, setSortAscending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const loadAdminDashboard = useCallback(async () => {
-    try {
-      const supabase = createClient();
+  const loadDashboard = async () => {
+    const supabase = createClient();
+    setError(null);
 
-      // Sync overdue statuses first (updates issued→overdue for past-due records)
-      try {
-        await fetch("/api/sync-overdue", { method: "POST" });
-      } catch (syncErr) {
-        console.warn("Overdue sync skipped:", syncErr);
-      }
+    const [{ data: profileRows, error: profileError }, { data: bookRows, error: bookError }, { data: issueRows, error: issueError }] = await Promise.all([
+      supabase.from("profiles").select("*").eq("role", "student"),
+      supabase.from("books").select("id, total_copies, available_copies"),
+      supabase.from("suggestions").select("*").order("created_at", { ascending: false }),
+    ]);
 
-      // 1. Total Books
-      const { count: booksCount } = await supabase
-        .from("books")
-        .select("*", { count: "exact", head: true });
-
-      // 2. Total Students
-      const { count: studentsCount } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .eq("role", "student");
-
-      // 3. Active Borrow Records
-      const { data: activeBorrows } = await supabase
-        .from("borrow_records")
-        .select(`
-          *,
-          books (title, author, isbn, cover_url),
-          profiles (full_name, roll_number, department)
-        `)
-        .neq("status", "returned")
-        .order("issue_date", { ascending: false });
-
-      // 4. Calculate Overdue and Pending Fines
-      let overdue = 0;
-      let fines = 0;
-
-      if (activeBorrows && activeBorrows.length > 0) {
-        activeBorrows.forEach((b) => {
-          const fineInfo = calculateFine(b.due_date, b.return_date);
-          if (fineInfo.isOverdue) {
-            overdue++;
-            if (!b.fine_paid) fines += fineInfo.fine;
-          } else if (b.fine_amount > 0 && !b.fine_paid) {
-            fines += Number(b.fine_amount);
-          }
-        });
-      }
-
-      // Also add unpaid fines from returned records
-      const { data: unpaidReturned } = await supabase
-        .from("borrow_records")
-        .select("fine_amount")
-        .eq("status", "returned")
-        .eq("fine_paid", false)
-        .gt("fine_amount", 0);
-
-      if (unpaidReturned) {
-        unpaidReturned.forEach((r) => {
-          fines += Number(r.fine_amount || 0);
-        });
-      }
-
-      // Recent Loans stream
-      const { data: recent } = await supabase
-        .from("borrow_records")
-        .select(`
-          *,
-          books (title, author, isbn, cover_url),
-          profiles (full_name, roll_number, department)
-        `)
-        .order("created_at", { ascending: false })
-        .limit(8);
-
-      if (!booksCount && (!recent || recent.length === 0)) {
-        // Demo mode mock stats
-        setStats({
-          totalBooks: 12,
-          totalStudents: 148,
-          currentlyIssued: 24,
-          overdueCount: 4,
-          totalPendingFines: 380,
-        });
-        setRecentLoans([
-          {
-            id: "demo-r1",
-            issue_date: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString(),
-            due_date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            status: "overdue",
-            fine_amount: 10,
-            fine_paid: false,
-            books: {
-              title: "Introduction to Algorithms (4th Edition)",
-              author: "Thomas H. Cormen",
-              isbn: "978-0262046305",
-              cover_url: "https://images.unsplash.com/photo-1532012164546-f432f2e3777a?w=500&auto=format&fit=crop&q=60",
-            },
-            profiles: {
-              full_name: "Rahul Sharma",
-              roll_number: "21CS019",
-              department: "Computer Science",
-            },
-          },
-          {
-            id: "demo-r2",
-            issue_date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-            due_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-            status: "issued",
-            fine_amount: 0,
-            fine_paid: false,
-            books: {
-              title: "Clean Code: Agile Software Craftsmanship",
-              author: "Robert C. Martin",
-              isbn: "978-0132350884",
-              cover_url: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&auto=format&fit=crop&q=60",
-            },
-            profiles: {
-              full_name: "Priya Patel",
-              roll_number: "22EC055",
-              department: "Electronics & Communication",
-            },
-          },
-        ]);
-      } else {
-        setStats({
-          totalBooks: booksCount || 0,
-          totalStudents: studentsCount || 0,
-          currentlyIssued: activeBorrows?.length || 0,
-          overdueCount: overdue,
-          totalPendingFines: fines,
-        });
-        setRecentLoans(recent || []);
-      }
-    } catch (err) {
-      console.error("Admin dashboard error:", err);
-    } finally {
+    if (profileError || bookError || issueError) {
+      setError(profileError?.message || bookError?.message || issueError?.message || "Unable to load admin data.");
       setLoading(false);
+      return;
     }
-  }, []);
+
+    const profiles = profileRows || [];
+    const books = bookRows || [];
+    const activeSince = Date.now() - ACTIVE_WINDOW_MINUTES * 60 * 1000;
+    setStudents(profiles);
+    setIssues((issueRows || []).map((issue) => ({
+      ...issue,
+      student: profiles.find((profile) => profile.id === issue.student_id),
+    })));
+    setStats({
+      students: profiles.length,
+      available: books.reduce((sum, book) => sum + Number(book.available_copies || 0), 0),
+      inUse: books.reduce((sum, book) => sum + Math.max(0, Number(book.total_copies || 0) - Number(book.available_copies || 0)), 0),
+      active: profiles.filter((profile) => profile.last_seen_at && new Date(profile.last_seen_at).getTime() >= activeSince).length,
+    });
+    setLoading(false);
+  };
 
   useEffect(() => {
-    loadAdminDashboard();
-
-    // Supabase Realtime subscription for admin dashboard metrics
+    loadDashboard();
     const supabase = createClient();
     const channel = supabase
-      .channel("admin_dashboard_metrics_live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "borrow_records" },
-        () => {
-          loadAdminDashboard();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "books" },
-        () => {
-          loadAdminDashboard();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "profiles" },
-        () => {
-          loadAdminDashboard();
-        }
-      )
+      .channel("admin-dashboard-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, loadDashboard)
+      .on("postgres_changes", { event: "*", schema: "public", table: "books" }, loadDashboard)
+      .on("postgres_changes", { event: "*", schema: "public", table: "suggestions" }, loadDashboard)
       .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, []);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [loadAdminDashboard]);
+  const visibleStudents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return students
+      .filter((student) => !query || [student.full_name, student.roll_number, student.email, student.department].some((value) => value?.toLowerCase().includes(query)))
+      .sort((first, second) => {
+        const left = String(first[sortField] || "").toLowerCase();
+        const right = String(second[sortField] || "").toLowerCase();
+        return (left > right ? 1 : left < right ? -1 : 0) * (sortAscending ? 1 : -1);
+      });
+  }, [students, search, sortField, sortAscending]);
 
+  const openStudent = async (student) => {
+    setSelectedStudent(student);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("borrow_records")
+      .select("*, books(title, author, isbn)")
+      .eq("student_id", student.id)
+      .order("issue_date", { ascending: false });
+    setBorrowHistory(data || []);
+  };
+
+  const updateIssueStatus = async (issueId, status) => {
+    const supabase = createClient();
+    const { error: updateError } = await supabase.from("suggestions").update({ status, updated_at: new Date().toISOString() }).eq("id", issueId);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setIssues((current) => current.map((issue) => issue.id === issueId ? { ...issue, status } : issue));
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-brand-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl">
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs font-semibold border border-purple-500/30 mb-3">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Circulation & Inventory Master Control</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Library Administration Dashboard
-          </h1>
-          <p className="text-sm text-slate-300 mt-1 max-w-xl">
-            Monitor real-time book circulation, overdue tracking, student records, and fine collections across all campus departments.
-          </p>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Operations Overview</h2>
+          <p className="text-sm text-slate-500 mt-1">Live student, circulation, and help desk activity.</p>
         </div>
+        <p className="text-xs text-slate-500">Active means seen within the last {ACTIVE_WINDOW_MINUTES} minutes.</p>
+      </div>
 
-        <div className="flex flex-wrap gap-2.5">
-          <Link
-            href="/admin/issue-return"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-md shadow-brand-600/30 transition"
-          >
-            <ArrowLeftRight className="w-4 h-4" />
-            Issue / Return
-          </Link>
-          <Link
-            href="/admin/books"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs border border-slate-700 transition"
-          >
-            <PlusCircle className="w-4 h-4" />
-            Add Book
-          </Link>
+      {error && <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex gap-2"><AlertCircle className="w-5 h-5 shrink-0" />{error}</div>}
+
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          ["Registered Students", stats.students, Users, "text-blue-600", "students"],
+          ["Books Available", stats.available, BookOpen, "text-emerald-600", "in stock"],
+          ["Books In Use", stats.inUse, Clock3, "text-amber-600", "checked out"],
+          ["Active Students", stats.active, CheckCircle2, "text-brand-600", `last ${ACTIVE_WINDOW_MINUTES} min`],
+        ].map(([label, value, Icon, color, hint]) => (
+          <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p><Icon className={`w-5 h-5 ${color}`} /></div>
+            <p className="text-3xl font-extrabold text-slate-900 mt-3">{loading ? "..." : value}</p>
+            <p className="text-xs text-slate-400 mt-1">{hint}</p>
+          </div>
+        ))}
+      </section>
+
+      <section id="students" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-5 sm:p-6 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div><h3 className="text-lg font-bold text-slate-900">Student Directory</h3><p className="text-xs text-slate-500 mt-1">Select a student to view profile and borrowing history.</p></div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative"><Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students" className="pl-9 pr-3 py-2 rounded-lg border border-slate-300 text-sm" /></div>
+            <button onClick={() => { setSortField("created_at"); setSortAscending((value) => !value); }} className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-lg border border-slate-300 text-xs font-bold text-slate-700">Registration {sortAscending ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}</button>
+          </div>
         </div>
-      </div>
+        <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500"><tr><th className="px-5 py-3">Name</th><th className="px-5 py-3">Roll Number</th><th className="px-5 py-3">Email</th><th className="px-5 py-3">Registered</th><th className="px-5 py-3">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{visibleStudents.map((student) => <tr key={student.id} onClick={() => openStudent(student)} className="cursor-pointer hover:bg-brand-50/50"><td className="px-5 py-3 font-semibold text-slate-900">{student.full_name}</td><td className="px-5 py-3 font-mono text-xs text-slate-600">{student.roll_number || "-"}</td><td className="px-5 py-3 text-slate-600">{student.email}</td><td className="px-5 py-3 text-slate-500">{formatDate(student.created_at)}</td><td className="px-5 py-3"><span className={`text-xs font-bold ${student.is_active ? "text-emerald-600" : "text-rose-600"}`}>{student.is_active ? "Active" : "Inactive"}</span></td></tr>)}{visibleStudents.length === 0 && <tr><td colSpan="5" className="px-5 py-10 text-center text-sm text-slate-500">No students found.</td></tr>}</tbody></table></div>
+      </section>
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard
-          title="Total Books"
-          value={loading ? "..." : stats.totalBooks}
-          subtitle="Registered in catalog"
-          icon={BookOpen}
-          color="blue"
-        />
-        <StatCard
-          title="Students"
-          value={loading ? "..." : stats.totalStudents}
-          subtitle="Registered members"
-          icon={Users}
-          color="purple"
-        />
-        <StatCard
-          title="Currently Issued"
-          value={loading ? "..." : stats.currentlyIssued}
-          subtitle="Active loans"
-          icon={ArrowLeftRight}
-          color="emerald"
-        />
-        <StatCard
-          title="Overdue Books"
-          value={loading ? "..." : stats.overdueCount}
-          subtitle={stats.overdueCount > 0 ? "Requires attention" : "Zero overdue"}
-          icon={Clock}
-          color={stats.overdueCount > 0 ? "rose" : "emerald"}
-          alert={stats.overdueCount > 0}
-        />
-        <StatCard
-          title="Pending Fines"
-          value={loading ? "..." : formatCurrency(stats.totalPendingFines)}
-          subtitle="Total uncollected"
-          icon={Receipt}
-          color={stats.totalPendingFines > 0 ? "amber" : "emerald"}
-        />
-      </div>
+      <section id="help-desk" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-5 sm:p-6 border-b border-slate-200"><h3 className="text-lg font-bold text-slate-900 flex items-center gap-2"><MessageSquare className="w-5 h-5 text-brand-600" /> Help Desk</h3><p className="text-xs text-slate-500 mt-1">Suggestions and reported problems submitted by students.</p></div>
+        <div className="divide-y divide-slate-100">{issues.map((issue) => <div key={issue.id} className="p-5 flex flex-col lg:flex-row lg:items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-brand-700 bg-brand-50 border border-brand-200 rounded-full px-2 py-1">{issue.category}</span><span className="text-xs text-slate-400">{formatDate(issue.created_at)}</span></div><p className="text-sm font-semibold text-slate-900 mt-2 whitespace-pre-wrap">{issue.description}</p><p className="text-xs text-slate-500 mt-2">{issue.student?.full_name || "Student"} · ID: {issue.student?.roll_number || issue.student_id}</p></div><select value={issue.status} onChange={(event) => updateIssueStatus(issue.id, event.target.value)} className="w-full lg:w-40 px-3 py-2 rounded-lg border border-slate-300 text-xs font-bold"><option>Open</option><option>In Progress</option><option>Resolved</option></select></div>)}{issues.length === 0 && <p className="p-10 text-center text-sm text-slate-500">No suggestions or issues have been reported.</p>}</div>
+      </section>
 
-      {/* Quick Access Action Shortcuts */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Link
-          href="/admin/issue-return"
-          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-brand-300 hover:shadow-md transition flex items-center gap-4 group"
-        >
-          <div className="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <ArrowLeftRight className="w-6 h-6" />
-          </div>
-          <div>
-            <h4 className="font-bold text-slate-900 text-sm group-hover:text-brand-600 transition-colors">
-              Issue & Return Desk
-            </h4>
-            <p className="text-xs text-slate-500 mt-0.5">Quick issue (+14d) & return with auto ₹5/day fine</p>
-          </div>
-        </Link>
-
-        <Link
-          href="/admin/books"
-          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-brand-300 hover:shadow-md transition flex items-center gap-4 group"
-        >
-          <div className="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <BookMarked className="w-6 h-6" />
-          </div>
-          <div>
-            <h4 className="font-bold text-slate-900 text-sm group-hover:text-brand-600 transition-colors">
-              Book Inventory & Art
-            </h4>
-            <p className="text-xs text-slate-500 mt-0.5">Add, edit stock copies, and upload book covers</p>
-          </div>
-        </Link>
-
-        <Link
-          href="/admin/fines"
-          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-brand-300 hover:shadow-md transition flex items-center gap-4 group"
-        >
-          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <Receipt className="w-6 h-6" />
-          </div>
-          <div>
-            <h4 className="font-bold text-slate-900 text-sm group-hover:text-brand-600 transition-colors">
-              Overdue Fines Ledger
-            </h4>
-            <p className="text-xs text-slate-500 mt-0.5">Review unpaid penalty balances and clear fines</p>
-          </div>
-        </Link>
-      </div>
-
-      {/* Recent Circulation Activity Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">Recent Circulation Activity</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Latest book checkouts and return transactions.</p>
-          </div>
-          <Link
-            href="/admin/issue-return"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-700"
-          >
-            Manage All Loans <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-
-        {loading ? (
-          <div className="py-12 text-center text-slate-400 text-sm animate-pulse">
-            Loading circulation records...
-          </div>
-        ) : recentLoans.length === 0 ? (
-          <div className="py-10 text-center text-slate-400 text-sm">
-            No circulation activity recorded yet.
-          </div>
-        ) : (
-          <BorrowTable records={recentLoans} showStudent={true} />
-        )}
-      </div>
+      {selectedStudent && <div className="fixed inset-0 z-40 bg-slate-950/50 p-4 flex items-center justify-center" onClick={() => setSelectedStudent(null)}><div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6" onClick={(event) => event.stopPropagation()}><div className="flex items-start justify-between gap-4"><div><h3 className="text-xl font-extrabold text-slate-900">{selectedStudent.full_name}</h3><p className="text-sm text-slate-500 mt-1">{selectedStudent.email} · {selectedStudent.roll_number || "No roll number"}</p></div><button onClick={() => setSelectedStudent(null)} className="text-slate-400 hover:text-slate-800 text-xl">×</button></div><div className="grid grid-cols-2 gap-3 mt-6 text-sm"><div className="bg-slate-50 rounded-xl p-3"><p className="text-xs text-slate-500">Department</p><p className="font-semibold mt-1">{selectedStudent.department || "-"}</p></div><div className="bg-slate-50 rounded-xl p-3"><p className="text-xs text-slate-500">Year</p><p className="font-semibold mt-1">{selectedStudent.year || "-"}</p></div><div className="bg-slate-50 rounded-xl p-3"><p className="text-xs text-slate-500">Phone</p><p className="font-semibold mt-1">{selectedStudent.phone || "-"}</p></div><div className="bg-slate-50 rounded-xl p-3"><p className="text-xs text-slate-500">Registered</p><p className="font-semibold mt-1">{formatDate(selectedStudent.created_at)}</p></div></div><h4 className="font-bold text-slate-900 mt-6 mb-3">Borrowing History</h4><div className="space-y-2">{borrowHistory.map((record) => <div key={record.id} className="border border-slate-200 rounded-xl p-3 text-sm"><p className="font-semibold">{record.books?.title || "Book"}</p><p className="text-xs text-slate-500 mt-1">{record.status} · Issued {formatDate(record.issue_date)} · Due {formatDate(record.due_date)}</p></div>)}{borrowHistory.length === 0 && <p className="text-sm text-slate-500">No borrowing history found.</p>}</div></div></div>}
     </div>
   );
 }

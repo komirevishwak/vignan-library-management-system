@@ -21,6 +21,55 @@ export default function StudentHistoryPage() {
         const { data: { user } } = await supabase.auth.getUser();
 
         if (!user) {
+          // Demo fallback
+          const mockHistory = [
+            {
+              id: "h-1",
+              issue_date: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+              due_date: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString(),
+              return_date: new Date(Date.now() - 32 * 24 * 60 * 60 * 1000).toISOString(),
+              status: "returned",
+              fine_amount: 0,
+              fine_paid: true,
+              books: {
+                title: "University Physics with Modern Physics",
+                author: "Hugh D. Young",
+                isbn: "978-0135159552",
+                cover_url: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=500&auto=format&fit=crop&q=60",
+              },
+            },
+            {
+              id: "h-2",
+              issue_date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+              due_date: new Date(Date.now() - 46 * 24 * 60 * 60 * 1000).toISOString(),
+              return_date: new Date(Date.now() - 44 * 24 * 60 * 60 * 1000).toISOString(),
+              status: "returned",
+              fine_amount: 10,
+              fine_paid: true,
+              books: {
+                title: "Calculus: Early Transcendentals",
+                author: "James Stewart",
+                isbn: "978-1285741550",
+                cover_url: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=500&auto=format&fit=crop&q=60",
+              },
+            },
+            {
+              id: "h-3",
+              issue_date: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString(),
+              due_date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+              status: "overdue",
+              fine_amount: 10,
+              fine_paid: false,
+              books: {
+                title: "Introduction to Algorithms (4th Edition)",
+                author: "Thomas H. Cormen",
+                isbn: "978-0262046305",
+                cover_url: "https://images.unsplash.com/photo-1532012164546-f432f2e3777a?w=500&auto=format&fit=crop&q=60",
+              },
+            },
+          ];
+          setRecords(mockHistory);
+          setFilteredRecords(mockHistory);
           setLoading(false);
           return;
         }
@@ -145,10 +194,10 @@ export default function StudentHistoryPage() {
               ? "No records match the selected filter criteria."
               : "You haven't borrowed any books yet."
           }
-          actionLabel={records.length === 0 ? "Browse Book Catalog" : "Clear Filter"}
+          actionLabel={records.length === 0 ? "Browse Digital Books" : "Clear Filter"}
           onAction={() => {
             if (records.length === 0) {
-              window.location.href = "/student/catalog";
+              window.location.href = "/student/digital-books";
             } else {
               setSearchQuery("");
               setStatusFilter("all");

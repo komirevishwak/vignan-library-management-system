@@ -1,0 +1,224 @@
+{
+  "name": "fullstack-ai-portfolio",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@babel/preset-react": "^7.22.15",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "mongoose": "^7.5.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "three": "^0.156.1"
+  }
+}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D AI Portfolio</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+        background-color: #121212;
+        color: #ffffff;
+      }
+    </style>
+
+    <!-- React and ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- React Three Fiber and Drei -->
+    <script src="https://unpkg.com/@react-three/fiber@8.13.0/dist/react-three-fiber.umd.js"></script>
+    <script src="https://unpkg.com/@react-three/drei@9.80.0/dist/react-three-drei.umd.js"></script>
+
+    <!-- Babel for in-browser JSX parsing -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect } = React;
+      const { Canvas } = ReactThreeFiber;
+      const { OrbitControls } = drei;
+
+      // 3D Animated Box Mesh
+      function Box({ scale }) {
+        return (
+          <mesh scale={[scale, scale, scale]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshStandardMaterial color="hotpink" />
+          </mesh>
+        );
+      }
+
+      // Genetic Algorithm Logic
+      function generatePopulation(size, length) {
+        return Array.from({ length: size }, () =>
+          Array.from({ length }, () => Math.round(Math.random()))
+        );
+      }
+
+      function fitness(individual) {
+        return individual.reduce((sum, gene) => sum + gene, 0);
+      }
+
+      function evolve(population) {
+        return population
+          .sort((a, b) => fitness(b) - fitness(a))
+          .slice(0, Math.floor(population.length / 2));
+      }
+
+      function App() {
+        const [projects, setProjects] = useState([]);
+        const [fitnessScore, setFitnessScore] = useState(0);
+
+        // Fetch Projects from backend
+        useEffect(() => {
+          fetch("/projects")
+            .then((res) => res.json())
+            .then((data) => setProjects(data))
+            .catch((err) => console.error("Error loading projects:", err));
+        }, []);
+
+        // Run Genetic Algorithm
+        const runEvolution = () => {
+          let population = generatePopulation(10, 8);
+          for (let i = 0; i < 20; i++) {
+            population = evolve(population);
+          }
+          const bestScore = fitness(population[0]);
+          setFitnessScore(bestScore);
+        };
+
+        return (
+          <div style={{ display: "flex", height: "100vh" }}>
+            {/* 3D Viewport */}
+            <div style={{ flex: 1 }}>
+              <Canvas>
+                <ambientLight intensity={0.6} />
+                <pointLight position={[10, 10, 10]} />
+                <Box scale={1 + fitnessScore * 0.15} />
+                <OrbitControls />
+              </Canvas>
+            </div>
+
+            {/* Sidebar Dashboard */}
+            <div style={{ width: "320px", padding: "20px", borderLeft: "1px solid #333", background: "#1e1e1e" }}>
+              <h2>AI Portfolio Dashboard</h2>
+
+              <div style={{ marginBottom: "24px" }}>
+                <h3>Genetic Algorithm</h3>
+                <button
+                  onClick={runEvolution}
+                  style={{
+                    padding: "10px 16px",
+                    cursor: "pointer",
+                    backgroundColor: "#007bff",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "4px"
+                  }}
+                >
+                  Run Evolution Cycle
+                </button>
+                <p>Best Fitness Score: <strong>{fitnessScore}</strong></p>
+              </div>
+
+              <div>
+                <h3>Database Projects</h3>
+                {projects.length === 0 ? (
+                  <p style={{ color: "#aaa" }}>No projects found in database.</p>
+                ) : (
+                  <ul>
+                    {projects.map((p) => (
+                      <li key={p._id} style={{ marginBottom: "10px" }}>
+                        <strong>{p.title}</strong>
+                        <p style={{ margin: "4px 0", fontSize: "14px" }}>{p.description}</p>
+                        <a href={p.link} target="_blank" rel="noreferrer" style={{ color: "#61dafb" }}>
+                          View Link
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const path = require("path");
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
+
+// MongoDB Connection
+mongoose
+  .connect("mongodb://127.0.0.1:27017/portfolioDB")
+  .then(() => console.log("Connected to MongoDB successfully"))
+  .catch((err) => console.error("MongoDB Connection Error:", err));
+
+// Mongoose Schema & Model
+const ProjectSchema = new mongoose.Schema({
+  title: String,
+  description: String,
+  link: String,
+});
+
+const Project = mongoose.model("Project", ProjectSchema);
+
+// REST API Endpoints
+app.get("/projects", async (req, res) => {
+  try {
+    const projects = await Project.find();
+    res.json(projects);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch projects" });
+  }
+});
+
+app.post("/projects", async (req, res) => {
+  try {
+    const project = new Project(req.body);
+    await project.save();
+    res.status(201).json(project);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to create project" });
+  }
+});
+
+// Serve Frontend App
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running at http://localhost:${PORT}`);
+});

@@ -1,21 +1,23 @@
-import { Book, CheckCircle2, XCircle, Tag, Hash } from "lucide-react";
+import { Book, Tag, Hash } from "lucide-react";
 import { useState } from "react";
-import { getBookCover } from "@/lib/utils";
+import { getBookCover, getBookFallbackCover } from "@/lib/utils";
 
 export default function BookCard({ book, onSelect, actionLabel = "View Details" }) {
-  const isAvailable = (book.available_copies || 0) > 0;
   const [imgError, setImgError] = useState(false);
   const coverSrc = getBookCover(book, "M");
+  const fallbackSrc = getBookFallbackCover(book);
 
   return (
     <div className="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-200 overflow-hidden flex flex-col">
       {/* Book Cover Area */}
       <div className="relative aspect-[3/4] w-full bg-gradient-to-br from-slate-900 via-slate-800 to-brand-950 overflow-hidden flex items-center justify-center">
-        {coverSrc && !imgError ? (
+        {coverSrc || (imgError && fallbackSrc) ? (
           <img
-            src={coverSrc}
-            alt={book.title}
+            src={imgError ? fallbackSrc : coverSrc}
+            alt={`Cover of ${book.title} by ${book.author}`}
             onError={() => setImgError(true)}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
@@ -37,26 +39,10 @@ export default function BookCard({ book, onSelect, actionLabel = "View Details" 
           </span>
         </div>
 
-        {/* Availability Badge */}
+        {/* Read access badge */}
         <div className="absolute top-2.5 right-2.5 z-10">
-          <span
-            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full shadow backdrop-blur-md ${
-              isAvailable
-                ? "bg-emerald-500/90 text-white border border-emerald-400/30"
-                : "bg-rose-500/90 text-white border border-rose-400/30"
-            }`}
-          >
-            {isAvailable ? (
-              <>
-                <CheckCircle2 className="w-3 h-3" />
-                {book.available_copies} Available
-              </>
-            ) : (
-              <>
-                <XCircle className="w-3 h-3" />
-                Checked Out
-              </>
-            )}
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full shadow backdrop-blur-md bg-emerald-500/90 text-white border border-emerald-400/30">
+            Available to read
           </span>
         </div>
       </div>

@@ -13,13 +13,14 @@ A production-grade, modern, and mobile-responsive College Library Management Sys
 - **Student Profile**: View and edit profile details, avatar upload to Supabase Storage, and password update.
 
 ### 🛡️ Admin Portal (`/admin/*`)
-- **Admin Dashboard**: Real-time KPI summary cards (Total Books, Total Students, Currently Issued, Overdue Count, Total Unpaid Fines), and live circulation activity feed.
-- **Book Inventory Management**: Complete CRUD operations for books with cover artwork upload to Supabase Storage, ISBN validation, and stock control.
-- **Student Directory**: Searchable directory of registered students with department filters, student loan history viewer, and one-click account deactivation.
-- **Circulation Desk (Issue & Return)**:
-  - **Issue Book**: Select student + book, auto-set due date (+14 days standard loan), and automatic inventory decrement.
-  - **Return Book**: Automatic fine calculation at **₹5.00/day** for overdue books, status update to 'returned', and inventory increment.
-- **Fines & Fee Ledger**: Full table of outstanding and settled fines with one-click **"Mark as Paid"** action and live unpaid balance tracking.
+- **Separate Admin Login**: `/admin/login` uses Supabase Auth sessions and an `admin_accounts` allowlist; no admin password is stored by the application.
+- **Operations Dashboard**: Live cards for registered students, available books, books in use, and students active within the last 15 minutes.
+- **Student Directory**: Searchable student table with registration data and a profile modal containing borrowing history.
+- **Help Desk**: Review student suggestions/issues and update their status to Open, In Progress, or Resolved.
+
+### 💬 Student Suggestions
+- Students can submit bugs, book requests, or general feedback from the dashboard.
+- Submissions are stored in `suggestions` and appear directly in the admin Help Desk.
 
 ---
 
@@ -40,10 +41,16 @@ npm install
 1. Log into your [Supabase Dashboard](https://supabase.com/dashboard) and create a new project.
 2. Open the **SQL Editor** in the left sidebar of your Supabase project.
 3. Open `supabase-schema.sql` from this repository, copy the entire SQL script, paste it into the Supabase SQL Editor, and click **Run**.
-   - This creates the `profiles`, `books`, and `borrow_records` tables.
+   - This creates the `profiles`, `admin_accounts`, `suggestions`, `books`, and `borrow_records` tables.
    - It configures Row Level Security (RLS) policies.
    - It creates the `book-covers` and `avatars` public storage buckets.
-   - It seeds initial academic books across Computer Science, AI, Electronics, Math, Physics, and Business.
+   - It seeds the academic catalog and configures the student/admin RLS policies.
+
+Prepare the authoritative technical catalog as an idempotent ISBN upsert:
+```bash
+npm run prepare:technical-books
+```
+Run the generated `supabase-technical-books-upsert.sql` in Supabase SQL Editor. It upserts every row present in the supplied file by ISBN and assigns the 31 local open-access SVG covers. The supplied file currently contains 130 data rows (99 ISBN rows plus 31 `OPEN-*` rows), despite its 131-book description; no missing title is invented by this project.
 
 ### 4. Configure Environment Variables
 Copy `.env.local.example` to `.env.local`:
@@ -58,14 +65,15 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 ```
 
 ### 5. Create an Admin Account
-1. Open the web app at `http://localhost:3000/signup` and register with your admin email (e.g. `admin@college.edu`).
-2. Run this SQL query in your Supabase SQL Editor to grant admin privileges:
+1. In Supabase Dashboard, open **Authentication -> Users** and create the staff user with a password. Supabase Auth hashes and manages the password.
+2. Run this SQL query in your Supabase SQL Editor to allowlist that Auth user:
 ```sql
-UPDATE public.profiles
-SET role = 'admin'
-WHERE id IN (SELECT id FROM auth.users WHERE email = 'admin@college.edu');
+INSERT INTO public.admin_accounts (id, email, full_name)
+SELECT id, email, 'Library Administrator'
+FROM auth.users
+WHERE email = 'librarian@college.edu';
 ```
-3. Now log in at `/login` with that email and password to access the full **Admin Desk**!
+3. Open `/admin/login` and sign in with that staff email and password.
 
 ---
 
@@ -97,19 +105,16 @@ Open [http://localhost:3000](http://localhost:3000) with your browser.
 ├── src/
 │   ├── app/
 │   │   ├── admin/
-│   │   │   ├── books/page.js         # Book inventory & artwork management
-│   │   │   ├── dashboard/page.js     # Admin KPI metrics & live circulation stream
-│   │   │   ├── fines/page.js         # Fines ledger & payment clearance
-│   │   │   ├── issue-return/page.js  # 14-day book issue & return with auto ₹5/day fine
-│   │   │   ├── layout.js             # Admin layout with sidebar & navigation
-│   │   │   └── students/page.js      # Student directory & loan history
+│   │   │   ├── login/page.js          # Isolated admin Auth login
+│   │   │   ├── dashboard/page.js     # Admin stats, students & help desk
+│   │   │   └── layout.js             # Admin session guard and navigation
 │   │   ├── student/
 │   │   │   ├── catalog/page.js       # Live search & filter book catalog
 │   │   │   ├── dashboard/page.js     # Active loans, overdue alerts & fines
 │   │   │   ├── history/page.js       # Complete borrow & return history
 │   │   │   ├── layout.js             # Student layout with sidebar & mobile drawer
 │   │   │   └── profile/page.js       # Student profile & avatar management
-│   │   ├── login/page.js             # Login with role-based routing
+│   │   ├── login/page.js             # Student-only login
 │   │   ├── signup/page.js            # Student registration with roll number
 │   │   ├── globals.css               # Tailwind CSS styles & modern scrollbars
 │   │   ├── layout.js                 # Root layout & setup banner

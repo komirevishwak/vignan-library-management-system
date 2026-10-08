@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDate, formatCurrency, calculateFine, getBookCover } from "@/lib/utils";
+import { formatDate, formatCurrency, calculateFine, getBookCover, getBookFallbackCover } from "@/lib/utils";
 import { AlertCircle, CheckCircle2, Clock, BookOpen, User } from "lucide-react";
 
 export default function BorrowTable({ records = [], showStudent = false, onReturnBook, onPayFine }) {
@@ -36,7 +36,16 @@ export default function BorrowTable({ records = [], showStudent = false, onRetur
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-14 rounded-lg bg-slate-900 border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-sm">
                       {coverUrl ? (
-                        <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+                        <img
+                          src={coverUrl}
+                          alt={`Cover of ${record.books?.title || "Unknown Book"} by ${record.books?.author || "N/A"}`}
+                          onError={(event) => {
+                            event.currentTarget.src = getBookFallbackCover(record.books);
+                          }}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <BookOpen className="w-4 h-4 text-slate-400" />
                       )}
@@ -49,7 +58,6 @@ export default function BorrowTable({ records = [], showStudent = false, onRetur
                   </div>
                 </td>
 
-                {/* Student info (Admin view) */}
                 {showStudent && (
                   <td className="px-5 py-4">
                     <div>

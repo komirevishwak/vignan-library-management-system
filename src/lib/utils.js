@@ -65,22 +65,24 @@ export function isSupabaseConfigured() {
 }
 
 export const CATEGORIES = [
-  "Computer Science",
-  "AI & Data Science",
-  "Electronics",
-  "Mathematics",
-  "Physics",
-  "Literature",
-  "Business",
-  "Mechanical",
-  "Civil",
-  "Electrical",
-  "Information Technology",
-  "Management",
-  "General",
+  "Programming",
+  "Data Structures",
+  "Databases",
+  "Web Development",
+  "AI & ML",
+  "Cloud",
+  "Cybersecurity",
+  "Computer Networks",
+  "Operating Systems",
+  "Software Engineering",
+  "IoT",
+  "Data Science",
+  "Computer Architecture",
+  "Mobile Development",
+  "Emerging Tech",
 ];
 
-export const COLLEGE_LIBRARY_BOOKS = [
+const LEGACY_COLLEGE_LIBRARY_BOOKS = [
   {
     id: "book-cs-1",
     title: "Introduction to Algorithms",
@@ -363,6 +365,24 @@ export const COLLEGE_LIBRARY_BOOKS = [
   },
 ];
 
+const SUBJECT_BOOKS = {
+  Programming: ["C", "C++", "Java", "Python", "JavaScript"],
+  "Data Structures": ["Data Structures", "Algorithms", "Problem Solving"],
+  Databases: ["DBMS", "SQL", "Distributed Databases"],
+  "Web Development": ["HTML", "CSS", "JavaScript", "React", "Node.js"],
+  "AI & ML": ["Artificial Intelligence", "Machine Learning", "Deep Learning"],
+  Cloud: ["Cloud Computing", "AWS", "Azure", "Distributed Systems"],
+  Cybersecurity: ["Network Security", "Cryptography", "Ethical Hacking"],
+  "Computer Networks": ["Computer Networks", "TCP/IP", "Network Administration"],
+  "Operating Systems": ["OS", "Linux", "System Programming"],
+  "Software Engineering": ["Software Engineering", "Design Patterns", "Testing"],
+  IoT: ["Internet of Things", "Embedded Systems", "Sensors"],
+  "Data Science": ["Statistics", "Data Analysis", "Data Visualization"],
+  "Computer Architecture": ["Computer Organization", "Microprocessors"],
+  "Mobile Development": ["Android", "Flutter", "Mobile Computing"],
+  "Emerging Tech": ["Blockchain", "Quantum Computing", "AR/VR"],
+};
+
 export const DEPARTMENTS = [
   "Computer Science & Engineering",
   "Information Technology",
@@ -406,9 +426,42 @@ export function getOpenLibraryCoverUrl(isbn, size = "M") {
  */
 export function getBookCover(book, size = "M") {
   if (!book) return "";
-  if (book.cover_url && book.cover_url.trim()) return book.cover_url;
+  const coverUrl = book.cover_url || (book.cover_image_url ? book.cover_image_url : "");
+  if (coverUrl && coverUrl.trim()) return coverUrl;
+  if (book.isbn && /^OPEN-\d{3}$/i.test(book.isbn.trim())) {
+    return `/book-covers/${book.isbn.trim().toLowerCase()}.svg`;
+  }
   if (book.isbn) return getOpenLibraryCoverUrl(book.isbn, size);
   return "";
+}
+
+export function getBookFallbackCover(book) {
+  if (!book) return "";
+  const title = String(book.title || "Technical Book").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&apos;",
+  }[character]));
+  const author = String(book.author || "Unknown Author").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&apos;",
+  }[character]));
+  const category = String(book.category || "Technical Library").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&apos;",
+  }[character]));
+  const hash = String(book.isbn || book.id || title).split("").reduce((total, character) => total + character.charCodeAt(0), 0);
+  const accent = `hsl(${hash % 360} 75% 55%)`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400"><rect width="300" height="400" fill="#111827"/><path d="M0 0h300v400H0z" fill="${accent}" opacity=".22"/><path d="M35 55h230M35 75h150M35 285h230" stroke="${accent}" stroke-width="5"/><text x="35" y="120" fill="white" font-family="sans-serif" font-size="12">${category}</text><text x="35" y="175" fill="white" font-family="sans-serif" font-size="25" font-weight="700">${title.slice(0, 24)}</text><text x="35" y="215" fill="white" font-family="sans-serif" font-size="25" font-weight="700">${title.slice(24, 48)}</text><text x="35" y="335" fill="#d1d5db" font-family="sans-serif" font-size="14">${author.slice(0, 34)}</text></svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
 /**

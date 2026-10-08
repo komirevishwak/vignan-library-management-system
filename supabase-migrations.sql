@@ -1,0 +1,24 @@
+-- Additive Phase 1 migration. Run after supabase-schema.sql.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS reminder_days_before INTEGER NOT NULL DEFAULT 2 CHECK (reminder_days_before BETWEEN 1 AND 30);
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS average_rating NUMERIC(3,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_books_search ON public.books USING gin(to_tsvector('english', title || ' ' || author || ' ' || coalesce(description, '')));
+CREATE INDEX IF NOT EXISTS idx_books_category_availability ON public.books(category, available_copies);
+CREATE TABLE IF NOT EXISTS public.book_reviews (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), book_id UUID NOT NULL REFERENCES public.books(id) ON DELETE CASCADE, student_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE, rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5), review_text TEXT NOT NULL CHECK (char_length(review_text) BETWEEN 10 AND 2000), is_verified_borrower BOOLEAN NOT NULL DEFAULT FALSE, helpful_count INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE(book_id, student_id));
+CREATE TABLE IF NOT EXISTS public.review_votes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), review_id UUID NOT NULL REFERENCES public.book_reviews(id) ON DELETE CASCADE, student_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE(review_id, student_id));
+CREATE TABLE IF NOT EXISTS public.reading_progress (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), student_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE, digital_borrowing_id UUID NOT NULL REFERENCES public.digital_borrowings(id) ON DELETE CASCADE, current_page INTEGER NOT NULL DEFAULT 1, total_pages INTEGER NOT NULL, current_position TEXT, progress_percentage INTEGER GENERATED ALWAYS AS (CASE WHEN total_pages > 0 THEN LEAST(100, (current_page * 100) / total_pages) ELSE 0 END) STORED, last_read_at TIMESTAMPTZ NOT NULL DEFAULT now(), created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE(student_id, digital_borrowing_id));
+ALTER TABLE public.book_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.review_votes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reading_progress ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view reviews" ON public.book_reviews;
+CREATE POLICY "Anyone can view reviews" ON public.book_reviews FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Students can manage own reviews" ON public.book_reviews;
+CREATE POLICY "Students can manage own reviews" ON public.book_reviews FOR ALL TO authenticated USING (auth.uid() = student_id) WITH CHECK (auth.uid() = student_id);
+DROP POLICY IF EXISTS "Students can manage own votes" ON public.review_votes;
+CREATE POLICY "Students can manage own votes" ON public.review_votes FOR ALL TO authenticated USING (auth.uid() = student_id) WITH CHECK (auth.uid() = student_id);
+DROP POLICY IF EXISTS "Students can manage own progress" ON public.reading_progress;
+CREATE POLICY "Students can manage own progress" ON public.reading_progress FOR ALL TO authenticated USING (auth.uid() = student_id) WITH CHECK (auth.uid() = student_id);
+CREATE OR REPLACE VIEW public.popular_books AS SELECT b.id, b.title, b.author, b.category, count(br.id)::integer AS borrow_count, count(DISTINCT br.student_id)::integer AS unique_borrowers FROM public.books b LEFT JOIN public.borrow_records br ON b.id = br.book_id GROUP BY b.id, b.title, b.author, b.category ORDER BY borrow_count DESC;
+CREATE OR REPLACE VIEW public.circulation_stats AS SELECT date_trunc('month', issue_date) AS month, count(*)::integer AS total_borrows, count(DISTINCT student_id)::integer AS active_students, round(avg(extract(epoch FROM (coalesce(return_date, now()) - issue_date)) / 86400)::numeric, 2) AS avg_borrow_days FROM public.borrow_records GROUP BY date_trunc('month', issue_date) ORDER BY month DESC;
+CREATE OR REPLACE VIEW public.category_distribution AS SELECT category, count(*)::integer AS book_count, sum(total_copies)::integer AS total_copies, sum(available_copies)::integer AS available_copies, round(avg(total_copies - available_copies)::numeric, 2) AS avg_borrowed FROM public.books GROUP BY category;
