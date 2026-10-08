@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { calculateFine, formatCurrency, formatDate } from "@/lib/utils";
@@ -31,142 +31,181 @@ export default function AdminDashboardPage() {
   const [recentLoans, setRecentLoans] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadAdminDashboard() {
+  const loadAdminDashboard = useCallback(async () => {
+    try {
+      const supabase = createClient();
+
+      // Sync overdue statuses first (updates issued→overdue for past-due records)
       try {
-        const supabase = createClient();
-
-        // 1. Total Books
-        const { count: booksCount } = await supabase
-          .from("books")
-          .select("*", { count: "exact", head: true });
-
-        // 2. Total Students
-        const { count: studentsCount } = await supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true })
-          .eq("role", "student");
-
-        // 3. Active Borrow Records
-        const { data: activeBorrows } = await supabase
-          .from("borrow_records")
-          .select(`
-            *,
-            books (title, author, isbn, cover_url),
-            profiles (full_name, roll_number, department)
-          `)
-          .neq("status", "returned")
-          .order("issue_date", { ascending: false });
-
-        // 4. Calculate Overdue and Pending Fines
-        let overdue = 0;
-        let fines = 0;
-
-        if (activeBorrows && activeBorrows.length > 0) {
-          activeBorrows.forEach((b) => {
-            const fineInfo = calculateFine(b.due_date, b.return_date);
-            if (fineInfo.isOverdue) {
-              overdue++;
-              if (!b.fine_paid) fines += fineInfo.fine;
-            } else if (b.fine_amount > 0 && !b.fine_paid) {
-              fines += Number(b.fine_amount);
-            }
-          });
-        }
-
-        // Also add unpaid fines from returned records
-        const { data: unpaidReturned } = await supabase
-          .from("borrow_records")
-          .select("fine_amount")
-          .eq("status", "returned")
-          .eq("fine_paid", false)
-          .gt("fine_amount", 0);
-
-        if (unpaidReturned) {
-          unpaidReturned.forEach((r) => {
-            fines += Number(r.fine_amount || 0);
-          });
-        }
-
-        // Recent Loans stream
-        const { data: recent } = await supabase
-          .from("borrow_records")
-          .select(`
-            *,
-            books (title, author, isbn, cover_url),
-            profiles (full_name, roll_number, department)
-          `)
-          .order("created_at", { ascending: false })
-          .limit(8);
-
-        if (!booksCount && (!recent || recent.length === 0)) {
-          // Demo mode mock stats
-          setStats({
-            totalBooks: 12,
-            totalStudents: 148,
-            currentlyIssued: 24,
-            overdueCount: 4,
-            totalPendingFines: 380,
-          });
-          setRecentLoans([
-            {
-              id: "demo-r1",
-              issue_date: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString(),
-              due_date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-              status: "overdue",
-              fine_amount: 10,
-              fine_paid: false,
-              books: {
-                title: "Introduction to Algorithms (4th Edition)",
-                author: "Thomas H. Cormen",
-                isbn: "978-0262046305",
-                cover_url: "https://images.unsplash.com/photo-1532012164546-f432f2e3777a?w=500&auto=format&fit=crop&q=60",
-              },
-              profiles: {
-                full_name: "Rahul Sharma",
-                roll_number: "21CS019",
-                department: "Computer Science",
-              },
-            },
-            {
-              id: "demo-r2",
-              issue_date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-              due_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-              status: "issued",
-              fine_amount: 0,
-              fine_paid: false,
-              books: {
-                title: "Clean Code: Agile Software Craftsmanship",
-                author: "Robert C. Martin",
-                isbn: "978-0132350884",
-                cover_url: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&auto=format&fit=crop&q=60",
-              },
-              profiles: {
-                full_name: "Priya Patel",
-                roll_number: "22EC055",
-                department: "Electronics & Communication",
-              },
-            },
-          ]);
-        } else {
-          setStats({
-            totalBooks: booksCount || 0,
-            totalStudents: studentsCount || 0,
-            currentlyIssued: activeBorrows?.length || 0,
-            overdueCount: overdue,
-            totalPendingFines: fines,
-          });
-          setRecentLoans(recent || []);
-        }
-      } catch (err) {
-        console.error("Admin dashboard error:", err);
-      } finally {
-        setLoading(false);
+        await fetch("/api/sync-overdue", { method: "POST" });
+      } catch (syncErr) {
+        console.warn("Overdue sync skipped:", syncErr);
       }
-    }
 
-    loadAdminDashboard();
+      // 1. Total Books
+      const { count: booksCount } = await supabase
+        .from("books")
+        .select("*", { count: "exact", head: true });
+
+      // 2. Total Students
+      const { count: studentsCount } = await supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("role", "student");
+
+      // 3. Active Borrow Records
+      const { data: activeBorrows } = await supabase
+        .from("borrow_records")
+        .select(`
+          *,
+          books (title, author, isbn, cover_url),
+          profiles (full_name, roll_number, department)
+        `)
+        .neq("status", "returned")
+        .order("issue_date", { ascending: false });
+
+      // 4. Calculate Overdue and Pending Fines
+      let overdue = 0;
+      let fines = 0;
+
+      if (activeBorrows && activeBorrows.length > 0) {
+        activeBorrows.forEach((b) => {
+          const fineInfo = calculateFine(b.due_date, b.return_date);
+          if (fineInfo.isOverdue) {
+            overdue++;
+            if (!b.fine_paid) fines += fineInfo.fine;
+          } else if (b.fine_amount > 0 && !b.fine_paid) {
+            fines += Number(b.fine_amount);
+          }
+        });
+      }
+
+      // Also add unpaid fines from returned records
+      const { data: unpaidReturned } = await supabase
+        .from("borrow_records")
+        .select("fine_amount")
+        .eq("status", "returned")
+        .eq("fine_paid", false)
+        .gt("fine_amount", 0);
+
+      if (unpaidReturned) {
+        unpaidReturned.forEach((r) => {
+          fines += Number(r.fine_amount || 0);
+        });
+      }
+
+      // Recent Loans stream
+      const { data: recent } = await supabase
+        .from("borrow_records")
+        .select(`
+          *,
+          books (title, author, isbn, cover_url),
+          profiles (full_name, roll_number, department)
+        `)
+        .order("created_at", { ascending: false })
+        .limit(8);
+
+      if (!booksCount && (!recent || recent.length === 0)) {
+        // Demo mode mock stats
+        setStats({
+          totalBooks: 12,
+          totalStudents: 148,
+          currentlyIssued: 24,
+          overdueCount: 4,
+          totalPendingFines: 380,
+        });
+        setRecentLoans([
+          {
+            id: "demo-r1",
+            issue_date: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString(),
+            due_date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            status: "overdue",
+            fine_amount: 10,
+            fine_paid: false,
+            books: {
+              title: "Introduction to Algorithms (4th Edition)",
+              author: "Thomas H. Cormen",
+              isbn: "978-0262046305",
+              cover_url: "https://images.unsplash.com/photo-1532012164546-f432f2e3777a?w=500&auto=format&fit=crop&q=60",
+            },
+            profiles: {
+              full_name: "Rahul Sharma",
+              roll_number: "21CS019",
+              department: "Computer Science",
+            },
+          },
+          {
+            id: "demo-r2",
+            issue_date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+            due_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+            status: "issued",
+            fine_amount: 0,
+            fine_paid: false,
+            books: {
+              title: "Clean Code: Agile Software Craftsmanship",
+              author: "Robert C. Martin",
+              isbn: "978-0132350884",
+              cover_url: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&auto=format&fit=crop&q=60",
+            },
+            profiles: {
+              full_name: "Priya Patel",
+              roll_number: "22EC055",
+              department: "Electronics & Communication",
+            },
+          },
+        ]);
+      } else {
+        setStats({
+          totalBooks: booksCount || 0,
+          totalStudents: studentsCount || 0,
+          currentlyIssued: activeBorrows?.length || 0,
+          overdueCount: overdue,
+          totalPendingFines: fines,
+        });
+        setRecentLoans(recent || []);
+      }
+    } catch (err) {
+      console.error("Admin dashboard error:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadAdminDashboard();
+
+    // Supabase Realtime subscription for admin dashboard metrics
+    const supabase = createClient();
+    const channel = supabase
+      .channel("admin_dashboard_metrics_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "borrow_records" },
+        () => {
+          loadAdminDashboard();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "books" },
+        () => {
+          loadAdminDashboard();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => {
+          loadAdminDashboard();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadAdminDashboard]);
+
 
   return (
     <div className="space-y-6">

@@ -2,28 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { DEPARTMENTS, STUDY_YEARS } from "@/lib/utils";
+import { DEPARTMENTS } from "@/lib/utils";
 import {
+  Shield,
   User,
   Mail,
   Phone,
-  Hash,
   Building,
-  GraduationCap,
-  Upload,
+  Camera,
   CheckCircle2,
   AlertCircle,
   Lock,
-  Camera,
-  Shield
+  KeyRound,
+  ShieldCheck
 } from "lucide-react";
 
-export default function StudentProfilePage() {
+export default function AdminProfilePage() {
   const [profile, setProfile] = useState({
     full_name: "",
-    roll_number: "",
     department: "",
-    year: "",
     phone: "",
     photo_url: "",
   });
@@ -41,7 +38,7 @@ export default function StudentProfilePage() {
   const [passwordMessage, setPasswordMessage] = useState(null);
 
   useEffect(() => {
-    async function loadProfile() {
+    async function loadAdminProfile() {
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
@@ -58,34 +55,30 @@ export default function StudentProfilePage() {
             setProfile(data);
           } else {
             setProfile({
-              full_name: user.user_metadata?.full_name || "",
-              roll_number: user.user_metadata?.roll_number || "",
-              department: user.user_metadata?.department || DEPARTMENTS[0],
-              year: user.user_metadata?.year || STUDY_YEARS[0],
+              full_name: user.user_metadata?.full_name || "Library Administrator",
+              department: user.user_metadata?.department || "Central Library Administration",
               phone: user.user_metadata?.phone || "",
               photo_url: user.user_metadata?.photo_url || "",
             });
           }
         } else {
           // Demo fallback
-          setEmail("student@college.edu");
+          setEmail("admin@college.edu");
           setProfile({
-            full_name: "Alex Johnson",
-            roll_number: "21CS042",
-            department: "Computer Science & Engineering",
-            year: "3rd Year",
+            full_name: "Dr. Sarah Jenkins",
+            department: "Central Library Administration",
             phone: "+91 98765 43210",
             photo_url: "",
           });
         }
       } catch (err) {
-        console.error("Profile load error:", err);
+        console.error("Admin profile load error:", err);
       } finally {
         setLoading(false);
       }
     }
 
-    loadProfile();
+    loadAdminProfile();
   }, []);
 
   const handleProfileUpdate = async (e) => {
@@ -99,7 +92,7 @@ export default function StudentProfilePage() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        setMessage("Profile updated successfully in demo mode!");
+        setMessage("Administrator profile updated in demo preview mode!");
         setSaving(false);
         return;
       }
@@ -110,28 +103,27 @@ export default function StudentProfilePage() {
           full_name: profile.full_name,
           phone: profile.phone,
           department: profile.department,
-          year: profile.year,
         })
         .eq("id", user.id);
 
       if (updateError) throw updateError;
 
-      setMessage("Profile details successfully updated.");
+      setMessage("Admin details updated successfully.");
     } catch (err) {
-      console.error("Profile update error:", err);
+      console.error("Admin profile update error:", err);
       setError(err.message || "Failed to update profile.");
     } finally {
       setSaving(false);
     }
   };
 
-  const AVATAR_PRESETS = [
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80",
+  const ADMIN_AVATAR_PRESETS = [
+    "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=400&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&auto=format&fit=crop&q=80",
   ];
 
   const handleApplyPhotoUrl = async (url) => {
@@ -154,9 +146,9 @@ export default function StudentProfilePage() {
       }
 
       setProfile((prev) => ({ ...prev, photo_url: url }));
-      setMessage("Profile picture updated successfully!");
+      setMessage("Administrator photo updated successfully!");
     } catch (err) {
-      console.error("Apply photo error:", err);
+      console.error("Apply admin photo error:", err);
       setError(err.message || "Failed to update profile picture.");
     } finally {
       setUploadingPhoto(false);
@@ -184,7 +176,7 @@ export default function StudentProfilePage() {
       // Try uploading to Supabase Storage avatars bucket
       try {
         const fileExt = file.name.split(".").pop();
-        const fileName = `${user ? user.id : 'demo'}-${Date.now()}.${fileExt}`;
+        const fileName = `admin-${user ? user.id : 'demo'}-${Date.now()}.${fileExt}`;
         const filePath = `${fileName}`;
 
         const { error: uploadError } = await supabase.storage
@@ -225,9 +217,9 @@ export default function StudentProfilePage() {
       }
 
       setProfile((prev) => ({ ...prev, photo_url: photoUrl }));
-      setMessage("Profile photo updated successfully!");
+      setMessage("Administrator photo updated successfully!");
     } catch (err) {
-      console.error("Photo upload error:", err);
+      console.error("Admin photo upload error:", err);
       setError(err.message || "Failed to upload photo.");
     } finally {
       setUploadingPhoto(false);
@@ -259,11 +251,11 @@ export default function StudentProfilePage() {
 
       if (pwdError) throw pwdError;
 
-      setPasswordMessage("Password updated successfully!");
+      setPasswordMessage("Admin master password updated successfully!");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      console.error("Password change error:", err);
+      console.error("Admin password change error:", err);
       setError(err.message || "Failed to change password.");
     } finally {
       setPasswordSaving(false);
@@ -274,10 +266,10 @@ export default function StudentProfilePage() {
     <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Student Profile & Credentials
+          Librarian & Admin Profile
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Manage your personal details, college affiliation, and account security.
+          Manage your administrator credentials, contact details, and account security.
         </p>
       </div>
 
@@ -299,7 +291,7 @@ export default function StudentProfilePage() {
         {/* Profile Card & Avatar */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
           <div className="relative group">
-            <div className="w-28 h-28 rounded-full bg-slate-100 border-2 border-brand-500 overflow-hidden flex items-center justify-center text-slate-400 shadow-inner">
+            <div className="w-28 h-28 rounded-full bg-slate-900 border-2 border-purple-500 overflow-hidden flex items-center justify-center text-white shadow-inner">
               {profile.photo_url ? (
                 <img
                   src={profile.photo_url}
@@ -307,11 +299,11 @@ export default function StudentProfilePage() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <User className="w-12 h-12 text-slate-400" />
+                <ShieldCheck className="w-12 h-12 text-purple-400" />
               )}
             </div>
 
-            <label className="absolute bottom-0 right-0 p-2 bg-brand-600 hover:bg-brand-700 text-white rounded-full cursor-pointer shadow-md transition">
+            <label className="absolute bottom-0 right-0 p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-full cursor-pointer shadow-md transition">
               <Camera className="w-4 h-4" />
               <input
                 type="file"
@@ -323,27 +315,26 @@ export default function StudentProfilePage() {
             </label>
           </div>
 
-          <h3 className="font-bold text-lg text-slate-900 mt-4">{profile.full_name || "Student"}</h3>
-          <span className="text-xs font-mono font-semibold text-brand-600 bg-brand-50 px-2.5 py-0.5 rounded-full border border-brand-200 mt-1">
-            Roll: {profile.roll_number || "N/A"}
+          <h3 className="font-bold text-lg text-slate-900 mt-4">{profile.full_name || "Librarian"}</h3>
+          <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200 mt-1">
+            Library Administrator
           </span>
-          <p className="text-xs text-slate-500 mt-2">{profile.department}</p>
-          <p className="text-xs text-slate-400">{profile.year}</p>
+          <p className="text-xs text-slate-500 mt-2">{profile.department || "Central Library"}</p>
 
           {/* Quick Avatar Presets */}
           <div className="w-full mt-4 pt-4 border-t border-slate-100">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">
-              Choose Profile Avatar
+              Choose Admin Avatar
             </p>
             <div className="flex items-center justify-center gap-2 flex-wrap">
-              {AVATAR_PRESETS.map((presetUrl, idx) => (
+              {ADMIN_AVATAR_PRESETS.map((presetUrl, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => handleApplyPhotoUrl(presetUrl)}
                   disabled={uploadingPhoto}
-                  className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 hover:border-brand-500 hover:scale-110 transition shadow-sm"
-                  title={`Avatar option ${idx + 1}`}
+                  className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 hover:border-purple-500 hover:scale-110 transition shadow-sm"
+                  title={`Admin avatar option ${idx + 1}`}
                 >
                   <img src={presetUrl} alt="" className="w-full h-full object-cover" />
                 </button>
@@ -353,22 +344,22 @@ export default function StudentProfilePage() {
 
           <div className="w-full mt-4 pt-4 border-t border-slate-100 text-left text-xs space-y-2 text-slate-500">
             <div className="flex items-center justify-between">
-              <span>Account Status:</span>
-              <span className="font-semibold text-emerald-600">Active Member</span>
+              <span>Role:</span>
+              <span className="font-semibold text-purple-700">Master Admin</span>
             </div>
             <div className="flex items-center justify-between">
-              <span>Borrow Limit:</span>
-              <span className="font-semibold text-slate-800">3 Books</span>
+              <span>Privileges:</span>
+              <span className="font-semibold text-slate-800">Issue / Return / Stock Control</span>
             </div>
           </div>
         </div>
 
-        {/* Edit Profile Form */}
+        {/* Edit Form */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <User className="w-5 h-5 text-brand-600" />
-              Personal Information
+              <User className="w-5 h-5 text-purple-600" />
+              Personal & Official Information
             </h3>
 
             <form onSubmit={handleProfileUpdate} className="space-y-4">
@@ -382,76 +373,13 @@ export default function StudentProfilePage() {
                     required
                     value={profile.full_name}
                     onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
-                    className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                    Roll Number (Read-only)
-                  </label>
-                  <input
-                    type="text"
-                    disabled
-                    value={profile.roll_number || ""}
-                    className="mt-1 block w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm bg-slate-100 text-slate-500 cursor-not-allowed font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                    Department
-                  </label>
-                  <select
-                    value={profile.department || DEPARTMENTS[0]}
-                    onChange={(e) => setProfile({ ...profile, department: e.target.value })}
-                    className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  >
-                    {DEPARTMENTS.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                    Year of Study
-                  </label>
-                  <select
-                    value={profile.year || STUDY_YEARS[0]}
-                    onChange={(e) => setProfile({ ...profile, year: e.target.value })}
-                    className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  >
-                    {STUDY_YEARS.map((yr) => (
-                      <option key={yr} value={yr}>
-                        {yr}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={profile.phone || ""}
-                    onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                    placeholder="+91 98765 43210"
-                    className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                    Email Address
+                    Official Email
                   </label>
                   <input
                     type="email"
@@ -462,23 +390,51 @@ export default function StudentProfilePage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
+                    Designation / Department
+                  </label>
+                  <input
+                    type="text"
+                    value={profile.department || ""}
+                    onChange={(e) => setProfile({ ...profile, department: e.target.value })}
+                    placeholder="e.g. Chief Librarian"
+                    className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
+                    Contact Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={profile.phone || ""}
+                    onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                    placeholder="+91 98765 43210"
+                    className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
               <div className="pt-2 flex justify-end">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-md shadow-brand-600/30 transition disabled:opacity-60"
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md shadow-purple-600/30 transition disabled:opacity-60"
                 >
-                  {saving ? "Saving Changes..." : "Save Profile Details"}
+                  {saving ? "Saving Changes..." : "Save Admin Profile"}
                 </button>
               </div>
             </form>
           </div>
 
-          {/* Change Password Card */}
+          {/* Change Password */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
               <Lock className="w-5 h-5 text-slate-700" />
-              Change Password
+              Change Admin Password
             </h3>
 
             {passwordMessage && (
@@ -491,7 +447,7 @@ export default function StudentProfilePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                    New Password
+                    New Master Password
                   </label>
                   <input
                     type="password"
@@ -499,13 +455,13 @@ export default function StudentProfilePage() {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                    Confirm New Password
+                    Confirm Password
                   </label>
                   <input
                     type="password"
@@ -513,7 +469,7 @@ export default function StudentProfilePage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
               </div>
@@ -524,7 +480,7 @@ export default function StudentProfilePage() {
                   disabled={passwordSaving}
                   className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition disabled:opacity-60"
                 >
-                  {passwordSaving ? "Updating Password..." : "Update Password"}
+                  {passwordSaving ? "Updating..." : "Update Master Password"}
                 </button>
               </div>
             </form>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { calculateFine, formatCurrency, formatDate } from "@/lib/utils";
 import BorrowTable from "@/components/BorrowTable";
@@ -41,7 +41,7 @@ export default function AdminIssueReturnPage() {
   const [submittingReturn, setSubmittingReturn] = useState(false);
   const [returnSuccess, setReturnSuccess] = useState(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const supabase = createClient();
@@ -78,11 +78,36 @@ export default function AdminIssueReturnPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, []);
+
+    // Supabase Realtime subscription
+    const supabase = createClient();
+    const channel = supabase
+      .channel("admin_issue_return_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "borrow_records" },
+        () => {
+          loadData();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "books" },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadData]);
+
 
   // Filtered lists for dropdown / search
   const filteredStudents = students.filter(

@@ -48,18 +48,18 @@ export default function Header({ onOpenSidebar, title, breadcrumb = [], role = "
         )}
 
         <Link
-          href={role === "admin" ? "/admin/dashboard" : "/student/profile"}
+          href={role === "admin" ? "/admin/profile" : "/student/profile"}
           className="flex items-center gap-2 p-1.5 pl-2 pr-3 rounded-full hover:bg-slate-100 border border-slate-200 transition"
         >
           <div className="w-7 h-7 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-xs overflow-hidden">
             {userProfile?.photo_url ? (
               <img src={userProfile.photo_url} alt="" className="w-full h-full object-cover" />
             ) : (
-              (userProfile?.full_name || "U")[0]?.toUpperCase()
+              (userProfile?.full_name || (role === "admin" ? "A" : "S"))[0]?.toUpperCase()
             )}
           </div>
           <span className="text-xs font-semibold text-slate-800 hidden md:block">
-            {userProfile?.full_name?.split(" ")[0] || (role === "admin" ? "Admin" : "Profile")}
+            {userProfile?.full_name?.split(" ")[0] || (role === "admin" ? "Admin Profile" : "Profile")}
           </span>
         </Link>
       </div>

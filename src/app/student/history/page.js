@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import BorrowTable from "@/components/BorrowTable";
 import EmptyState from "@/components/EmptyState";
+import { calculateFine } from "@/lib/utils";
 import { History, Search, Filter, BookOpen } from "lucide-react";
 
 export default function StudentHistoryPage() {
@@ -20,55 +21,6 @@ export default function StudentHistoryPage() {
         const { data: { user } } = await supabase.auth.getUser();
 
         if (!user) {
-          // Demo fallback
-          const mockHistory = [
-            {
-              id: "h-1",
-              issue_date: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-              due_date: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString(),
-              return_date: new Date(Date.now() - 32 * 24 * 60 * 60 * 1000).toISOString(),
-              status: "returned",
-              fine_amount: 0,
-              fine_paid: true,
-              books: {
-                title: "University Physics with Modern Physics",
-                author: "Hugh D. Young",
-                isbn: "978-0135159552",
-                cover_url: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=500&auto=format&fit=crop&q=60",
-              },
-            },
-            {
-              id: "h-2",
-              issue_date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-              due_date: new Date(Date.now() - 46 * 24 * 60 * 60 * 1000).toISOString(),
-              return_date: new Date(Date.now() - 44 * 24 * 60 * 60 * 1000).toISOString(),
-              status: "returned",
-              fine_amount: 10,
-              fine_paid: true,
-              books: {
-                title: "Calculus: Early Transcendentals",
-                author: "James Stewart",
-                isbn: "978-1285741550",
-                cover_url: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=500&auto=format&fit=crop&q=60",
-              },
-            },
-            {
-              id: "h-3",
-              issue_date: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString(),
-              due_date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-              status: "overdue",
-              fine_amount: 10,
-              fine_paid: false,
-              books: {
-                title: "Introduction to Algorithms (4th Edition)",
-                author: "Thomas H. Cormen",
-                isbn: "978-0262046305",
-                cover_url: "https://images.unsplash.com/photo-1532012164546-f432f2e3777a?w=500&auto=format&fit=crop&q=60",
-              },
-            },
-          ];
-          setRecords(mockHistory);
-          setFilteredRecords(mockHistory);
           setLoading(false);
           return;
         }
@@ -108,7 +60,13 @@ export default function StudentHistoryPage() {
     let list = [...records];
 
     if (statusFilter !== "all") {
-      list = list.filter((r) => r.status === statusFilter);
+      list = list.filter((r) => {
+        const effectiveStatus =
+          r.status === "issued" && calculateFine(r.due_date, r.return_date).isOverdue
+            ? "overdue"
+            : r.status;
+        return effectiveStatus === statusFilter;
+      });
     }
 
     if (searchQuery.trim()) {

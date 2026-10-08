@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { CATEGORIES } from "@/lib/utils";
+import { CATEGORIES, COLLEGE_LIBRARY_BOOKS, getBookCover, fetchBookByIsbn, getOpenLibraryCoverUrl } from "@/lib/utils";
 import Modal from "@/components/Modal";
 import EmptyState from "@/components/EmptyState";
 import {
@@ -17,6 +17,8 @@ import {
   Hash,
   Tag,
   Check,
+  Sparkles,
+  Loader2,
   Image as ImageIcon
 } from "lucide-react";
 
@@ -43,10 +45,11 @@ export default function AdminBooksPage() {
   });
   const [coverFile, setCoverFile] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
+  const [fetchingIsbn, setFetchingIsbn] = useState(false);
   const [formError, setFormError] = useState(null);
   const [successToast, setSuccessToast] = useState(null);
 
-  const loadBooks = async () => {
+  const loadBooks = useCallback(async () => {
     try {
       setLoading(true);
       const supabase = createClient();
@@ -56,18 +59,68 @@ export default function AdminBooksPage() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setBooks(data || []);
-      setFilteredBooks(data || []);
+
+      const catalog = data && data.length > 0 ? data : COLLEGE_LIBRARY_BOOKS;
+      setBooks(catalog);
+      setFilteredBooks(catalog);
     } catch (err) {
       console.error("Error loading books:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadBooks();
-  }, []);
+
+    // Supabase Realtime subscription
+    const supabase = createClient();
+    const channel = supabase
+      .channel("admin_books_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "books" },
+        () => {
+          loadBooks();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadBooks]);
+
+  const handleFetchFromOpenLibrary = async () => {
+    if (!formData.isbn.trim()) {
+      setFormError("Please enter an ISBN number first to auto-fetch details.");
+      return;
+    }
+
+    setFetchingIsbn(true);
+    setFormError(null);
+
+    try {
+      const bookData = await fetchBookByIsbn(formData.isbn.trim());
+      setFormData((prev) => ({
+        ...prev,
+        title: bookData.title || prev.title,
+        author: bookData.author || prev.author,
+        category: bookData.category || prev.category,
+        cover_url: bookData.cover_url || getOpenLibraryCoverUrl(formData.isbn.trim(), "L"),
+      }));
+      showToast("Book details and cover artwork fetched from Open Library!");
+    } catch (err) {
+      console.warn("Open library fetch issue:", err);
+      // Even if metadata API fails, still assign Open Library Cover URL from ISBN
+      const fallbackCover = getOpenLibraryCoverUrl(formData.isbn.trim(), "L");
+      setFormData((prev) => ({ ...prev, cover_url: fallbackCover }));
+      setFormError("Could not fetch full details, but Open Library cover URL has been linked!");
+    } finally {
+      setFetchingIsbn(false);
+    }
+  };
+
 
   // Filter effect
   useEffect(() => {
@@ -335,9 +388,9 @@ export default function AdminBooksPage() {
                 <tr key={book.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-14 rounded bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                        {book.cover_url ? (
-                          <img src={book.cover_url} alt="" className="w-full h-full object-cover" />
+                      <div className="w-10 h-14 rounded-lg bg-slate-900 border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-sm">
+                        {getBookCover(book, "S") ? (
+                          <img src={getBookCover(book, "S")} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <BookOpen className="w-4 h-4 text-slate-400" />
                         )}
@@ -417,6 +470,41 @@ export default function AdminBooksPage() {
         )}
 
         <form onSubmit={handleSaveBook} className="space-y-4">
+          {/* ISBN with Auto-Fetch Button */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
+                ISBN Number *
+              </label>
+              <button
+                type="button"
+                onClick={handleFetchFromOpenLibrary}
+                disabled={fetchingIsbn || !formData.isbn.trim()}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-800 bg-brand-50 hover:bg-brand-100 px-2.5 py-1 rounded-lg border border-brand-200 transition disabled:opacity-50"
+              >
+                {fetchingIsbn ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Fetching Open Library...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                    Auto-Fill via ISBN (Open Library)
+                  </>
+                )}
+              </button>
+            </div>
+            <input
+              type="text"
+              required
+              value={formData.isbn}
+              onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
+              placeholder="e.g. 978-0132350884 or 9780262046305"
+              className="block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
               Book Title *
@@ -426,39 +514,23 @@ export default function AdminBooksPage() {
               required
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="e.g. Introduction to Algorithms"
+              placeholder="e.g. Clean Code: A Handbook of Agile Software Craftsmanship"
               className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                Author(s) *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.author}
-                onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                placeholder="e.g. Thomas H. Cormen"
-                className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                ISBN Number *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.isbn}
-                onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
-                placeholder="e.g. 978-0262046305"
-                className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Author(s) *
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.author}
+              onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+              placeholder="e.g. Robert C. Martin"
+              className="mt-1 block w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -494,30 +566,47 @@ export default function AdminBooksPage() {
             </div>
           </div>
 
-          {/* Cover Image Upload / URL */}
+          {/* Cover Image Artwork */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
               Cover Image Artwork
             </label>
             <div className="flex flex-col sm:flex-row gap-3 items-center">
-              <label className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 cursor-pointer transition">
-                <Upload className="w-4 h-4 text-brand-600" />
-                {coverFile ? coverFile.name : "Upload Image File"}
+              {/* Cover Preview */}
+              <div className="w-14 h-20 rounded-lg bg-slate-900 border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-sm">
+                {formData.cover_url || (formData.isbn && getOpenLibraryCoverUrl(formData.isbn, "S")) ? (
+                  <img
+                    src={formData.cover_url || getOpenLibraryCoverUrl(formData.isbn, "S")}
+                    alt="Cover preview"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <BookOpen className="w-5 h-5 text-slate-400" />
+                )}
+              </div>
+
+              <div className="flex-1 space-y-2 w-full">
                 <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setCoverFile(e.target.files?.[0] || null)}
-                  className="hidden"
+                  type="url"
+                  value={formData.cover_url}
+                  onChange={(e) => setFormData({ ...formData, cover_url: e.target.value })}
+                  placeholder="https://covers.openlibrary.org/b/isbn/..."
+                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-xs bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
-              </label>
-              <span className="text-xs text-slate-400">or paste image URL:</span>
-              <input
-                type="url"
-                value={formData.cover_url}
-                onChange={(e) => setFormData({ ...formData, cover_url: e.target.value })}
-                placeholder="https://..."
-                className="flex-1 w-full px-3.5 py-2 border border-slate-300 rounded-xl text-xs bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 cursor-pointer transition">
+                    <Upload className="w-3.5 h-3.5 text-brand-600" />
+                    {coverFile ? coverFile.name : "Upload Custom File"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setCoverFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+                  </label>
+                  <span className="text-[11px] text-slate-400">or use auto Open Library cover URL</span>
+                </div>
+              </div>
             </div>
           </div>
 

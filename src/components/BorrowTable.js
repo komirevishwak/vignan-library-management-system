@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDate, formatCurrency, calculateFine } from "@/lib/utils";
+import { formatDate, formatCurrency, calculateFine, getBookCover } from "@/lib/utils";
 import { AlertCircle, CheckCircle2, Clock, BookOpen, User } from "lucide-react";
 
 export default function BorrowTable({ records = [], showStudent = false, onReturnBook, onPayFine }) {
@@ -18,7 +18,7 @@ export default function BorrowTable({ records = [], showStudent = false, onRetur
             <th className="px-5 py-3.5">Issue Date</th>
             <th className="px-5 py-3.5">Due Date</th>
             <th className="px-5 py-3.5">Status</th>
-            <th className="px-5 py-3.5">Fine</th>
+            <th className="px-5 py-3.5">Fine Owed</th>
             {(onReturnBook || onPayFine) && <th className="px-5 py-3.5 text-right">Actions</th>}
           </tr>
         </thead>
@@ -27,15 +27,16 @@ export default function BorrowTable({ records = [], showStudent = false, onRetur
             const fineInfo = calculateFine(record.due_date, record.return_date);
             const isOverdue = record.status === "overdue" || (record.status === "issued" && fineInfo.isOverdue);
             const fineDue = record.status === "returned" ? (record.fine_amount || 0) : fineInfo.fine;
+            const coverUrl = getBookCover(record.books, "S");
 
             return (
               <tr key={record.id} className="hover:bg-slate-50/70 transition-colors">
                 {/* Book Title & Author */}
                 <td className="px-5 py-4 font-medium text-slate-900">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-12 rounded bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                      {record.books?.cover_url ? (
-                        <img src={record.books.cover_url} alt="" className="w-full h-full object-cover" />
+                    <div className="w-10 h-14 rounded-lg bg-slate-900 border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-sm">
+                      {coverUrl ? (
+                        <img src={coverUrl} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <BookOpen className="w-4 h-4 text-slate-400" />
                       )}

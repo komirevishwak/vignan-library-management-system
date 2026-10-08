@@ -37,6 +37,7 @@ export default function Sidebar({ role = "student", userProfile = null, isOpen, 
     { name: "Students Directory", href: "/admin/students", icon: Users },
     { name: "Issue & Return", href: "/admin/issue-return", icon: ArrowLeftRight },
     { name: "Overdue & Fines", href: "/admin/fines", icon: Receipt },
+    { name: "Admin Profile", href: "/admin/profile", icon: User },
   ];
 
   const links = role === "admin" ? adminLinks : studentLinks;

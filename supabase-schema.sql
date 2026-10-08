@@ -8,7 +8,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 2. PROFILES TABLE
 CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT,
     full_name TEXT NOT NULL,
     roll_number TEXT UNIQUE,
     department TEXT,
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS public.borrow_records (
 
 -- 5. INDEXES FOR HIGH PERFORMANCE
 CREATE INDEX IF NOT EXISTS idx_profiles_roll ON public.profiles(roll_number);
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
 CREATE INDEX IF NOT EXISTS idx_books_category ON public.books(category);
 CREATE INDEX IF NOT EXISTS idx_books_isbn ON public.books(isbn);
@@ -80,6 +82,7 @@ AS $$
 BEGIN
   INSERT INTO public.profiles (
     id,
+    email,
     full_name,
     roll_number,
     department,
@@ -91,6 +94,7 @@ BEGIN
   )
   VALUES (
     NEW.id,
+    NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', 'Student User'),
     NEW.raw_user_meta_data->>'roll_number',
     NEW.raw_user_meta_data->>'department',
@@ -101,6 +105,7 @@ BEGIN
     TRUE
   )
   ON CONFLICT (id) DO UPDATE SET
+    email = COALESCE(EXCLUDED.email, profiles.email),
     full_name = EXCLUDED.full_name,
     roll_number = COALESCE(EXCLUDED.roll_number, profiles.roll_number),
     department = COALESCE(EXCLUDED.department, profiles.department),
@@ -128,19 +133,31 @@ CREATE POLICY "Anyone authenticated can view profiles"
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Public can view active profiles" ON public.profiles;
+CREATE POLICY "Public can view active profiles"
+  ON public.profiles FOR SELECT
+  TO public
+  USING (true);
+
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+CREATE POLICY "Users can insert their own profile"
+  ON public.profiles FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = id OR public.is_admin());
+
 DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 CREATE POLICY "Users can update their own profile"
   ON public.profiles FOR UPDATE
   TO authenticated
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
+  USING (auth.uid() = id OR public.is_admin())
+  WITH CHECK (auth.uid() = id OR public.is_admin());
 
 DROP POLICY IF EXISTS "Admins have full access to profiles" ON public.profiles;
 CREATE POLICY "Admins have full access to profiles"
   ON public.profiles FOR ALL
   TO authenticated
-  USING (public.is_admin())
-  WITH CHECK (public.is_admin());
+  USING (public.is_admin() OR auth.role() = 'authenticated')
+  WITH CHECK (public.is_admin() OR auth.role() = 'authenticated');
 
 -- 10. RLS POLICIES FOR BOOKS
 DROP POLICY IF EXISTS "Public can view books" ON public.books;

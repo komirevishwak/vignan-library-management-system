@@ -1,18 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { BookOpen, LogIn, Lock, Mail, AlertCircle, ArrowRight, Eye, EyeOff, ShieldCheck, GraduationCap } from "lucide-react";
+import { BookOpen, LogIn, Lock, Mail, AlertCircle, Eye, EyeOff, ShieldCheck, Hash } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [infoMessage, setInfoMessage] = useState(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("confirmed") === "true") {
+        setInfoMessage("Email confirmed successfully! You can now log in with your credentials.");
+      }
+      if (urlParams.get("error") === "account-inactive") {
+        setError("Your account has been deactivated by the librarian. Please contact the library desk.");
+      }
+    }
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -21,29 +34,73 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
+      let emailToAuth = identifier.trim();
+
+      // If user provided a Roll Number (no '@' sign), resolve email from profiles
+      if (!emailToAuth.includes("@")) {
+        const cleanRoll = emailToAuth.toUpperCase();
+        const { data: matchedProfile } = await supabase
+          .from("profiles")
+          .select("id, roll_number, email, role")
+          .ilike("roll_number", cleanRoll)
+          .maybeSingle();
+
+        if (matchedProfile && matchedProfile.email) {
+          emailToAuth = matchedProfile.email;
+        } else {
+          emailToAuth = `${cleanRoll.toLowerCase()}@college.edu`;
+        }
+      }
+
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: emailToAuth,
         password,
       });
 
       if (authError) {
-        throw new Error(authError.message || "Invalid email or password.");
+        throw new Error(authError.message || "Invalid Roll Number / Email or password.");
       }
 
       if (data?.user) {
-        // Fetch user role
-        const { data: profile, error: profileError } = await supabase
+        const user = data.user;
+        const meta = user.user_metadata || {};
+
+        // Fetch user role and active status safely with maybeSingle()
+        let { data: profile } = await supabase
           .from("profiles")
-          .select("role, is_active")
-          .eq("id", data.user.id)
-          .single();
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        // If profile row doesn't exist yet (e.g. email confirmation bypassed trigger), auto-provision it immediately
+        if (!profile) {
+          const newProfile = {
+            id: user.id,
+            email: user.email,
+            full_name: meta.full_name || (emailToAuth.includes("@") ? emailToAuth.split("@")[0] : identifier),
+            roll_number: meta.roll_number || (!identifier.includes("@") ? identifier.toUpperCase() : null),
+            department: meta.department || "Computer Science & Engineering",
+            year: meta.year || "1st Year",
+            phone: meta.phone || null,
+            role: meta.role || (emailToAuth.includes("admin") ? "admin" : "student"),
+            is_active: true,
+          };
+
+          try {
+            await supabase.from("profiles").upsert(newProfile);
+            profile = newProfile;
+          } catch (pErr) {
+            console.warn("Auto-provision profile warning:", pErr);
+            profile = newProfile;
+          }
+        }
 
         if (profile && profile.is_active === false) {
           await supabase.auth.signOut();
           throw new Error("Your account has been deactivated by the librarian. Please contact the library desk.");
         }
 
-        const role = profile?.role || "student";
+        const role = profile?.role || meta.role || "student";
         if (role === "admin") {
           router.push("/admin/dashboard");
         } else {
@@ -58,6 +115,7 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-50 relative overflow-hidden">
@@ -80,6 +138,16 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-8 bg-white py-8 px-6 shadow-xl shadow-slate-200/50 rounded-2xl border border-slate-200 sm:px-10">
+          {infoMessage && (
+            <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Email Verified</p>
+                <p className="mt-0.5 text-emerald-700">{infoMessage}</p>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
@@ -93,19 +161,19 @@ export default function LoginPage() {
           <form className="space-y-5" onSubmit={handleLogin}>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
-                Email Address
+                Roll Number or Institutional Email
               </label>
               <div className="mt-1.5 relative rounded-xl">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="h-4 w-4" />
+                  <Hash className="h-4 w-4" />
                 </div>
                 <input
-                  type="email"
+                  type="text"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="student@college.edu"
-                  className="block w-full pl-10 pr-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50/50 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="e.g. 21CS042 or student@college.edu"
+                  className="block w-full pl-10 pr-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50/50 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition uppercase"
                 />
               </div>
             </div>
@@ -115,6 +183,9 @@ export default function LoginPage() {
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
                   Password
                 </label>
+                <Link href="/forgot-password" className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition">
+                  Forgot password?
+                </Link>
               </div>
               <div className="mt-1.5 relative rounded-xl">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -149,43 +220,6 @@ export default function LoginPage() {
               </button>
             </div>
           </form>
-
-          {/* Quick Demo Credentials Info */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center mb-3">
-              Testing & Demo Access
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("student@college.edu");
-                  setPassword("password123");
-                }}
-                className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left transition flex items-center gap-2"
-              >
-                <GraduationCap className="w-4 h-4 text-brand-600 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-slate-800">Student Demo</p>
-                  <p className="text-[10px] text-slate-500">Auto-fill student</p>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("admin@college.edu");
-                  setPassword("admin123");
-                }}
-                className="p-2.5 rounded-lg border border-slate-200 bg-purple-50 hover:bg-purple-100 text-left transition flex items-center gap-2"
-              >
-                <ShieldCheck className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-purple-900">Admin Demo</p>
-                  <p className="text-[10px] text-purple-600">Auto-fill admin</p>
-                </div>
-              </button>
-            </div>
-          </div>
 
           <div className="mt-6 text-center">
             <p className="text-xs text-slate-500">

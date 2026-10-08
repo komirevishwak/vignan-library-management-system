@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { CATEGORIES } from "@/lib/utils";
+import { CATEGORIES, COLLEGE_LIBRARY_BOOKS, getBookCover } from "@/lib/utils";
 import BookCard from "@/components/BookCard";
 import Modal from "@/components/Modal";
 import EmptyState from "@/components/EmptyState";
@@ -15,7 +15,9 @@ import {
   Hash,
   Tag,
   Layers,
-  GraduationCap
+  GraduationCap,
+  Sparkles,
+  Radio
 } from "lucide-react";
 
 export default function StudentCatalogPage() {
@@ -27,114 +29,50 @@ export default function StudentCatalogPage() {
   const [loading, setLoading] = useState(true);
   const [selectedBook, setSelectedBook] = useState(null);
 
-  useEffect(() => {
-    async function loadCatalog() {
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from("books")
-          .select("*")
-          .order("title", { ascending: true });
+  const loadCatalog = useCallback(async () => {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("books")
+        .select("*")
+        .order("title", { ascending: true });
 
-        if (error || !data || data.length === 0) {
-          // Fallback sample catalog if DB is fresh
-          const fallbackBooks = [
-            {
-              id: "b-1",
-              title: "Introduction to Algorithms (4th Edition)",
-              author: "Thomas H. Cormen, Charles E. Leiserson",
-              isbn: "978-0262046305",
-              category: "Computer Science",
-              total_copies: 8,
-              available_copies: 6,
-              cover_url: "https://images.unsplash.com/photo-1532012164546-f432f2e3777a?w=500&auto=format&fit=crop&q=60",
-            },
-            {
-              id: "b-2",
-              title: "Clean Code: Agile Software Craftsmanship",
-              author: "Robert C. Martin",
-              isbn: "978-0132350884",
-              category: "Computer Science",
-              total_copies: 5,
-              available_copies: 4,
-              cover_url: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&auto=format&fit=crop&q=60",
-            },
-            {
-              id: "b-3",
-              title: "Artificial Intelligence: A Modern Approach",
-              author: "Stuart Russell, Peter Norvig",
-              isbn: "978-0134610993",
-              category: "AI & Data Science",
-              total_copies: 6,
-              available_copies: 5,
-              cover_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&auto=format&fit=crop&q=60",
-            },
-            {
-              id: "b-4",
-              title: "Deep Learning",
-              author: "Ian Goodfellow, Yoshua Bengio",
-              isbn: "978-0262035613",
-              category: "AI & Data Science",
-              total_copies: 4,
-              available_copies: 0,
-              cover_url: "https://images.unsplash.com/photo-1507413245164-6160d8298b31?w=500&auto=format&fit=crop&q=60",
-            },
-            {
-              id: "b-5",
-              title: "Microelectronic Circuits (8th Edition)",
-              author: "Adel S. Sedra, Kenneth C. Smith",
-              isbn: "978-0190853464",
-              category: "Electronics",
-              total_copies: 5,
-              available_copies: 5,
-              cover_url: "https://images.unsplash.com/photo-1517420704952-d9f39e95b43e?w=500&auto=format&fit=crop&q=60",
-            },
-            {
-              id: "b-6",
-              title: "Calculus: Early Transcendentals",
-              author: "James Stewart",
-              isbn: "978-1285741550",
-              category: "Mathematics",
-              total_copies: 10,
-              available_copies: 8,
-              cover_url: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=500&auto=format&fit=crop&q=60",
-            },
-            {
-              id: "b-7",
-              title: "University Physics with Modern Physics",
-              author: "Hugh D. Young, Roger A. Freedman",
-              isbn: "978-0135159552",
-              category: "Physics",
-              total_copies: 6,
-              available_copies: 4,
-              cover_url: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=500&auto=format&fit=crop&q=60",
-            },
-            {
-              id: "b-8",
-              title: "Principles of Corporate Finance",
-              author: "Richard A. Brealey, Stewart C. Myers",
-              isbn: "978-1260013900",
-              category: "Business",
-              total_copies: 4,
-              available_copies: 3,
-              cover_url: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=500&auto=format&fit=crop&q=60",
-            },
-          ];
-          setBooks(fallbackBooks);
-          setFilteredBooks(fallbackBooks);
-        } else {
-          setBooks(data);
-          setFilteredBooks(data);
-        }
-      } catch (err) {
-        console.error("Error loading catalog:", err);
-      } finally {
-        setLoading(false);
+      if (error || !data || data.length === 0) {
+        setBooks(COLLEGE_LIBRARY_BOOKS);
+        setFilteredBooks(COLLEGE_LIBRARY_BOOKS);
+      } else {
+        setBooks(data);
+        setFilteredBooks(data);
       }
+    } catch (err) {
+      console.error("Error loading catalog:", err);
+    } finally {
+      setLoading(false);
     }
-
-    loadCatalog();
   }, []);
+
+  useEffect(() => {
+    loadCatalog();
+
+    // Setup Supabase Realtime subscription for instant stock / available copies updates
+    const supabase = createClient();
+    const channel = supabase
+      .channel("student_catalog_books_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "books" },
+        (payload) => {
+          console.log("Real-time books update received:", payload);
+          loadCatalog();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadCatalog]);
+
 
   // Filter effect
   useEffect(() => {
@@ -292,15 +230,15 @@ export default function StudentCatalogPage() {
       <Modal
         isOpen={!!selectedBook}
         onClose={() => setSelectedBook(null)}
-        title="Book Information & Availability"
+        title="Book Information & Live Availability"
       >
         {selectedBook && (
           <div className="space-y-5">
             <div className="flex gap-4">
-              <div className="w-24 h-32 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                {selectedBook.cover_url ? (
+              <div className="w-24 h-32 rounded-xl bg-slate-900 border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-sm">
+                {getBookCover(selectedBook, "L") ? (
                   <img
-                    src={selectedBook.cover_url}
+                    src={getBookCover(selectedBook, "L")}
                     alt={selectedBook.title}
                     className="w-full h-full object-cover"
                   />

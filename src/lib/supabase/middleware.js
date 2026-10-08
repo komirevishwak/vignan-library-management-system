@@ -46,6 +46,8 @@ export async function updateSession(request) {
     pathname === '/' ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
+    pathname === '/forgot-password' ||
+    pathname === '/auth/reset-password' ||
     pathname.includes('.')
   ) {
     return supabaseResponse;
@@ -85,12 +87,26 @@ export async function updateSession(request) {
       .eq('id', user.id)
       .single();
 
+    if (profile?.is_active === false) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/login';
+      redirectUrl.searchParams.set('error', 'account-inactive');
+      return NextResponse.redirect(redirectUrl);
+    }
+
     const role = profile?.role || 'student';
 
     // Protect /admin routes from non-admins
     if (pathname.startsWith('/admin') && role !== 'admin') {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = '/student/dashboard';
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    // Keep admin accounts out of student-only pages.
+    if (pathname.startsWith('/student') && role !== 'student') {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/admin/dashboard';
       return NextResponse.redirect(redirectUrl);
     }
   }
