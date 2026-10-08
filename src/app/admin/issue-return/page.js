@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { calculateFine, formatCurrency, formatDate } from "@/lib/utils";
+import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
 import BorrowTable from "@/components/BorrowTable";
 import EmptyState from "@/components/EmptyState";
 import {
@@ -41,9 +42,9 @@ export default function AdminIssueReturnPage() {
   const [submittingReturn, setSubmittingReturn] = useState(false);
   const [returnSuccess, setReturnSuccess] = useState(null);
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const supabase = createClient();
 
       // 1. Fetch Students
@@ -83,6 +84,9 @@ export default function AdminIssueReturnPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Live updates: new student signups, stock changes, loans created/returned
+  useRealtimeRefresh(["profiles", "books", "borrow_records"], () => loadData(true));
 
   // Filtered lists for dropdown / search
   const filteredStudents = students.filter(
@@ -150,32 +154,18 @@ export default function AdminIssueReturnPage() {
 
     try {
       const supabase = createClient();
-      const issueDate = new Date();
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + Number(dueDateDays));
 
-      // 1. Create borrow record
-      const { error: insertError } = await supabase.from("borrow_records").insert({
-        student_id: selectedStudentId,
-        book_id: selectedBookId,
-        issue_date: issueDate.toISOString(),
-        due_date: dueDate.toISOString(),
-        status: "issued",
-        fine_amount: 0,
-        fine_paid: false,
+      // Atomic on the database: checks stock + active student, inserts the loan
+      // and decrements available_copies in one transaction.
+      const { error: issueRpcError } = await supabase.rpc("issue_book", {
+        p_student_id: selectedStudentId,
+        p_book_id: selectedBookId,
+        p_days: Number(dueDateDays),
       });
 
-      if (insertError) throw insertError;
-
-      // 2. Decrement available copies of the book
-      const { error: updateBookError } = await supabase
-        .from("books")
-        .update({
-          available_copies: Math.max(0, (bookObj.available_copies || 1) - 1),
-        })
-        .eq("id", selectedBookId);
-
-      if (updateBookError) throw updateBookError;
+      if (issueRpcError) throw issueRpcError;
 
       setIssueSuccess(
         `Successfully issued "${bookObj.title}" to ${studentObj?.full_name} (Due on ${dueDate.toLocaleDateString()})`
@@ -187,7 +177,7 @@ export default function AdminIssueReturnPage() {
       setStudentSearch("");
       setBookSearch("");
 
-      await loadData();
+      await loadData(true);
     } catch (err) {
       console.error("Issue error:", err);
       setIssueError(err.message || "Failed to issue book. Please try again.");
@@ -209,31 +199,12 @@ export default function AdminIssueReturnPage() {
 
     try {
       const supabase = createClient();
-      const returnDate = new Date().toISOString();
+      // Atomic on the database: sets return date, fine and restores stock.
+      const { error: returnRpcError } = await supabase.rpc("return_book", {
+        p_record_id: record.id,
+      });
 
-      // 1. Update borrow record status to returned
-      const { error: updateBorrowError } = await supabase
-        .from("borrow_records")
-        .update({
-          return_date: returnDate,
-          status: "returned",
-          fine_amount: fineInfo.fine,
-          fine_paid: fineInfo.fine === 0, // auto paid if ₹0
-        })
-        .eq("id", record.id);
-
-      if (updateBorrowError) throw updateBorrowError;
-
-      // 2. Increment book available copies
-      const currentAvailable = record.books?.available_copies ?? 0;
-      const { error: updateBookError } = await supabase
-        .from("books")
-        .update({
-          available_copies: currentAvailable + 1,
-        })
-        .eq("id", record.book_id);
-
-      if (updateBookError) throw updateBookError;
+      if (returnRpcError) throw returnRpcError;
 
       setReturnSuccess(
         `"${record.books?.title}" returned successfully! ${
@@ -242,7 +213,7 @@ export default function AdminIssueReturnPage() {
       );
       setTimeout(() => setReturnSuccess(null), 4000);
 
-      await loadData();
+      await loadData(true);
     } catch (err) {
       console.error("Return error:", err);
       alert(err.message || "Failed to record book return.");

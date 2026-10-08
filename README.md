@@ -45,6 +45,8 @@ npm install
    - It creates the `book-covers` and `avatars` public storage buckets.
    - It seeds initial academic books across Computer Science, AI, Electronics, Math, Physics, and Business.
 
+   - **Then also run `supabase-fixes.sql`** the same way: it turns on Realtime (live admin updates), closes the role-escalation hole, and adds atomic issue/return functions.
+
 ### 4. Configure Environment Variables
 Copy `.env.local.example` to `.env.local`:
 ```bash

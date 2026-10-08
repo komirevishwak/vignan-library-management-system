@@ -57,9 +57,14 @@ export async function updateSession(request) {
       // Query profile to get role
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, is_active')
         .eq('id', user.id)
         .single();
+
+      if (profile && profile.is_active === false) {
+        await supabase.auth.signOut();
+        return supabaseResponse;
+      }
 
       const role = profile?.role || 'student';
       const redirectUrl = request.nextUrl.clone();
@@ -84,6 +89,15 @@ export async function updateSession(request) {
       .select('role, is_active')
       .eq('id', user.id)
       .single();
+
+    // Deactivated accounts are signed out immediately
+    if (profile && profile.is_active === false) {
+      await supabase.auth.signOut();
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/login';
+      redirectUrl.search = '';
+      return NextResponse.redirect(redirectUrl);
+    }
 
     const role = profile?.role || 'student';
 

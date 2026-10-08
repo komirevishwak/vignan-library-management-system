@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { calculateFine, formatCurrency, formatDate } from "@/lib/utils";
+import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
 import StatCard from "@/components/StatCard";
 import BorrowTable from "@/components/BorrowTable";
 import {
@@ -31,8 +32,8 @@ export default function AdminDashboardPage() {
   const [recentLoans, setRecentLoans] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadAdminDashboard() {
+  async function loadAdminDashboard() {
+    {
       try {
         const supabase = createClient();
 
@@ -99,56 +100,7 @@ export default function AdminDashboardPage() {
           .order("created_at", { ascending: false })
           .limit(8);
 
-        if (!booksCount && (!recent || recent.length === 0)) {
-          // Demo mode mock stats
-          setStats({
-            totalBooks: 12,
-            totalStudents: 148,
-            currentlyIssued: 24,
-            overdueCount: 4,
-            totalPendingFines: 380,
-          });
-          setRecentLoans([
-            {
-              id: "demo-r1",
-              issue_date: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString(),
-              due_date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-              status: "overdue",
-              fine_amount: 10,
-              fine_paid: false,
-              books: {
-                title: "Introduction to Algorithms (4th Edition)",
-                author: "Thomas H. Cormen",
-                isbn: "978-0262046305",
-                cover_url: "https://images.unsplash.com/photo-1532012164546-f432f2e3777a?w=500&auto=format&fit=crop&q=60",
-              },
-              profiles: {
-                full_name: "Rahul Sharma",
-                roll_number: "21CS019",
-                department: "Computer Science",
-              },
-            },
-            {
-              id: "demo-r2",
-              issue_date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-              due_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-              status: "issued",
-              fine_amount: 0,
-              fine_paid: false,
-              books: {
-                title: "Clean Code: Agile Software Craftsmanship",
-                author: "Robert C. Martin",
-                isbn: "978-0132350884",
-                cover_url: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&auto=format&fit=crop&q=60",
-              },
-              profiles: {
-                full_name: "Priya Patel",
-                roll_number: "22EC055",
-                department: "Electronics & Communication",
-              },
-            },
-          ]);
-        } else {
+        {
           setStats({
             totalBooks: booksCount || 0,
             totalStudents: studentsCount || 0,
@@ -165,8 +117,13 @@ export default function AdminDashboardPage() {
       }
     }
 
+  }
+
+  useEffect(() => {
     loadAdminDashboard();
   }, []);
+
+  useRealtimeRefresh(["books", "profiles", "borrow_records"], loadAdminDashboard);
 
   return (
     <div className="space-y-6">

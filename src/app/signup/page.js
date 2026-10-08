@@ -84,16 +84,12 @@ export default function SignupPage() {
 
       // If user profile is not automatically inserted by trigger, ensure upsert
       if (data?.user) {
-        await supabase.from("profiles").upsert({
-          id: data.user.id,
-          full_name: formData.fullName,
-          roll_number: formData.rollNumber.trim().toUpperCase(),
-          department: formData.department,
-          year: formData.year,
-          phone: formData.phone,
-          role: "student",
-          is_active: true,
-        });
+        // The database trigger already created the profile from the signup metadata.
+        // Email confirmation is on: there is no session yet, so ask the student to confirm.
+        if (!data.session) {
+          setError("Account created! Please confirm your email address from the link we sent, then sign in.");
+          return;
+        }
 
         setSuccess(true);
         setTimeout(() => {

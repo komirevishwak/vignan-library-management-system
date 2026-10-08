@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CATEGORIES } from "@/lib/utils";
+import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
 import Modal from "@/components/Modal";
 import EmptyState from "@/components/EmptyState";
 import {
@@ -46,9 +47,9 @@ export default function AdminBooksPage() {
   const [formError, setFormError] = useState(null);
   const [successToast, setSuccessToast] = useState(null);
 
-  const loadBooks = async () => {
+  const loadBooks = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const supabase = createClient();
       const { data, error } = await supabase
         .from("books")
@@ -57,7 +58,6 @@ export default function AdminBooksPage() {
 
       if (error) throw error;
       setBooks(data || []);
-      setFilteredBooks(data || []);
     } catch (err) {
       console.error("Error loading books:", err);
     } finally {
@@ -68,6 +68,9 @@ export default function AdminBooksPage() {
   useEffect(() => {
     loadBooks();
   }, []);
+
+  // Live stock updates when loans are issued/returned or books change elsewhere
+  useRealtimeRefresh(["books"], () => loadBooks(true));
 
   // Filter effect
   useEffect(() => {
@@ -201,7 +204,7 @@ export default function AdminBooksPage() {
         setIsAddModalOpen(false);
       }
 
-      await loadBooks();
+      await loadBooks(true);
     } catch (err) {
       console.error("Save book error:", err);
       setFormError(err.message || "Failed to save book.");
@@ -225,7 +228,7 @@ export default function AdminBooksPage() {
 
       showToast(`"${deletingBook.title}" deleted from catalog.`);
       setDeletingBook(null);
-      await loadBooks();
+      await loadBooks(true);
     } catch (err) {
       console.error("Delete book error:", err);
       alert(err.message || "Failed to delete book. It may have active loan records.");

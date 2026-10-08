@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { calculateFine, formatCurrency, formatDate } from "@/lib/utils";
+import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
 import EmptyState from "@/components/EmptyState";
 import {
   Receipt,
@@ -25,9 +26,9 @@ export default function AdminFinesPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
-  const loadFines = async () => {
+  const loadFines = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const supabase = createClient();
 
       const { data, error } = await supabase
@@ -63,7 +64,6 @@ export default function AdminFinesPage() {
       );
 
       setFinesList(recordsWithFines);
-      setFilteredFines(recordsWithFines);
     } catch (err) {
       console.error("Error loading fines:", err);
     } finally {
@@ -74,6 +74,8 @@ export default function AdminFinesPage() {
   useEffect(() => {
     loadFines();
   }, []);
+
+  useRealtimeRefresh(["borrow_records", "profiles", "books"], () => loadFines(true));
 
   // Filter effect
   useEffect(() => {
@@ -121,7 +123,7 @@ export default function AdminFinesPage() {
       setToastMessage(`Fine payment cleared for ${record.profiles?.full_name}!`);
       setTimeout(() => setToastMessage(null), 3500);
 
-      await loadFines();
+      await loadFines(true);
     } catch (err) {
       console.error("Payment update error:", err);
       alert(err.message || "Failed to mark fine as paid.");

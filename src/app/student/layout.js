@@ -5,6 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
 
 export default function StudentLayout({ children }) {
   const router = useRouter();
@@ -12,8 +13,8 @@ export default function StudentLayout({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadStudentProfile() {
+  async function loadStudentProfile() {
+    {
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
@@ -50,8 +51,26 @@ export default function StudentLayout({ children }) {
       }
     }
 
+  }
+
+  useEffect(() => {
     loadStudentProfile();
   }, []);
+
+  // If the librarian deactivates this account, sign the student out right away
+  useRealtimeRefresh(["profiles"], async () => {
+    await loadStudentProfile();
+  });
+
+  useEffect(() => {
+    if (profile && profile.is_active === false) {
+      const supabase = createClient();
+      supabase.auth.signOut().finally(() => {
+        router.push("/login");
+        router.refresh();
+      });
+    }
+  }, [profile, router]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex">

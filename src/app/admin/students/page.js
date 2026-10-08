@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DEPARTMENTS, STUDY_YEARS } from "@/lib/utils";
+import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
 import Modal from "@/components/Modal";
 import EmptyState from "@/components/EmptyState";
 import BorrowTable from "@/components/BorrowTable";
@@ -33,9 +34,9 @@ export default function AdminStudentsPage() {
   const [loadingBorrows, setLoadingBorrows] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const loadStudents = async () => {
+  const loadStudents = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const supabase = createClient();
       const { data, error } = await supabase
         .from("profiles")
@@ -45,7 +46,8 @@ export default function AdminStudentsPage() {
 
       if (error) throw error;
       setStudents(data || []);
-      setFilteredStudents(data || []);
+      // keep the open details modal in sync with the latest profile data
+      setViewStudent((prev) => (prev ? (data || []).find((s) => s.id === prev.id) || prev : prev));
     } catch (err) {
       console.error("Error loading students:", err);
     } finally {
@@ -79,10 +81,8 @@ export default function AdminStudentsPage() {
     setFilteredStudents(list);
   }, [searchQuery, selectedDept, students]);
 
-  const handleOpenStudentDetails = async (student) => {
-    setViewStudent(student);
-    setLoadingBorrows(true);
-
+  const fetchBorrows = async (studentId, silent = false) => {
+    if (!silent) setLoadingBorrows(true);
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -91,7 +91,7 @@ export default function AdminStudentsPage() {
           *,
           books (title, author, isbn, cover_url)
         `)
-        .eq("student_id", student.id)
+        .eq("student_id", studentId)
         .order("issue_date", { ascending: false });
 
       if (error) throw error;
@@ -102,6 +102,17 @@ export default function AdminStudentsPage() {
       setLoadingBorrows(false);
     }
   };
+
+  const handleOpenStudentDetails = (student) => {
+    setViewStudent(student);
+    fetchBorrows(student.id);
+  };
+
+  // Live updates: student signups/profile edits and loan changes
+  useRealtimeRefresh(["profiles", "borrow_records"], () => {
+    loadStudents(true);
+    if (viewStudent) fetchBorrows(viewStudent.id, true);
+  });
 
   const handleToggleActive = async (student) => {
     const newStatus = !student.is_active;
